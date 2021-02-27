@@ -1,5 +1,6 @@
 #include "Point.h"
 
+//TODO it may have x[], y[], z[] for memory burst
 Point::Point(float x, float y, float z) : x(x), y(y), z(z) {
     cluster = -1;
     oldcluster = -1;

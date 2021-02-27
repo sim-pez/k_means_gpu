@@ -5,7 +5,7 @@
 //#include <filesystem>
 
 #include "csvHandler.h"
-
+#include "definitions.h"
 
 vector<Point> readCsv() {
     vector<Point> points;
@@ -22,9 +22,6 @@ vector<Point> readCsv() {
         y = stod(bit);
         getline(lineStream, bit, '\n');
         z = stod(bit);
-
-        std::cout << x;
-
         Point pt = Point(x, y, z);
 
         points.push_back(pt);
