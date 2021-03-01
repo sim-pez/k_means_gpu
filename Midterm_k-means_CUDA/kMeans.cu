@@ -88,24 +88,29 @@ __device__ void assignClusters(vector<Point> *points, vector<Point> *centroids, 
 
 }
 
-__host__ void kMeansCuda(vector<Point> *points_h, int epochsLimit, int k){
+__host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 	// Step 1: Create k random centroids
 	vector<Point> centroids_h;
 	random_device rd;
 	default_random_engine engine(rd());
-	uniform_int_distribution<int> distribution(0, points_h->size() - 1);
+	uniform_int_distribution<int> distribution(0, DATA_SIZE - 1);
 	int lastEpoch = 0;
 	for(int i=0; i<k; i++) {
 	    int randomLocation = distribution(engine);
-	    Point c = points_h->at(randomLocation);
+	    Point c = points_h->i;
 	    centroids_h.push_back(c);
 	}
 
 
 	//device memory managing
-	vector<Point> *points_d, centroids_d;
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(Point) * DATA_SIZE)); // allocate device memory
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(Point) * DATA_SIZE));
+	__constant__ float *points_d;
+	float centroids_d;
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE)); // allocate device memory
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * DATA_SIZE));
+
+	CUDA_CHECK_RETURN(cudaMemcpyToSimbol(points_h, points_d, sizeof(float) * DATA_SIZE));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
+
 
 
 	//TODO shall I allocate something to constant memory ?
