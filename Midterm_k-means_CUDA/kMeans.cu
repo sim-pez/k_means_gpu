@@ -163,5 +163,4 @@ int main(int argc, char **argv)
 	initialize();
 	vector<Point> data_h = readCsv();
 	kMeansCuda(&data_h, 500, CLUSTER_NUM);
-
 }

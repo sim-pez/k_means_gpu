@@ -1,10 +1,3 @@
-/*
- * definitions.h
- *
- *  Created on: Feb 27, 2021
- *      Author: PC2020user8
- */
-
 #ifndef DEFINITIONS_H_
 #define DEFINITIONS_H_
 //--------------------------------------------------------------------------

@@ -7,31 +7,29 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-vector<Point> readCsv() {
+float *readCsv() {
     vector<Point> points;
     string line;
-    ifstream file("dataset.csv", ifstream::in);
+    ifstream file("../dataset.csv", ifstream::in);
 
-    while (getline(file, line)) {
+    float *data = (float *) malloc(sizeof(float) * DATA_SIZE);
+
+    for (int i = 0; i < DATA_SIZE; i = i + 3 ){
+        getline(file, line);
         stringstream lineStream(line);
         string bit;
-        float x, y, z;
-        getline(lineStream, bit, ',');
-        x = stod(bit);
-        getline(lineStream, bit, ',');
-        y = stod(bit);
-        getline(lineStream, bit, '\n');
-        z = stod(bit);
-        Point pt = Point(x, y, z);
-
-        points.push_back(pt);
+        getline(lineStream, bit, ','); // x
+        data[i] = stof(bit);
+        getline(lineStream, bit, ','); // y
+        data[i + 1] = stof(bit);
+        getline(lineStream, bit, ','); // z
+        data[i + 2] = stof(bit);
     }
     file.close();
-
-    return points;
+    return data;
 }
 
-void writeCsv(vector<Point>* points, vector<Point>* centroids, int iteration, int k) {
+void writeCsv(float* points, float* centroids, int iteration, int k) {
     ofstream fileIterations("../output/k" + to_string(k) + "iteration" + to_string(iteration) + ".csv", ifstream::out);
     for(auto &point : *points) {
         fileIterations << point.getX() << "," << point.getY() << "," << point.getZ() << "," << point.getCluster() << "\n";
@@ -47,6 +45,6 @@ void writeCsv(vector<Point>* points, vector<Point>* centroids, int iteration, in
 }
 
 void initialize(){
-    //std::filesystem::remove_all("../output/");
-    //std::filesystem::create_directory("../output/");
+    std::filesystem::remove_all("../output/");
+    std::filesystem::create_directory("../output/");
 }

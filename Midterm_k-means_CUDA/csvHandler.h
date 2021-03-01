@@ -3,7 +3,7 @@
 
 using namespace std;
 
-vector<Point> readCsv();
+float* readCsv();
 
 void writeCsv(vector<Point>* points, vector<Point>* centroids, int iteration, int k);
 
