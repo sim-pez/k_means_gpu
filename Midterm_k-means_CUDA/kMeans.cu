@@ -37,7 +37,7 @@ void updateCentroids(vector<Point> *points, vector<Point> *centroids, int k){   
     vector<float> sumZ(k, 0.0);
 
     if (tid < DATA_SIZE){
-    	points->at()
+    	points->at();
     }
     for (auto &point : *points) {
         int pointCluster = point.getCluster();
@@ -107,8 +107,7 @@ __host__ void kMeansCuda(vector<Point> *points_h, int epochsLimit, int k){
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(Point) * DATA_SIZE)); // allocate device memory
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(Point) * DATA_SIZE));
 
-	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(Point) * DATA_SIZE), cudaMemcpyHostToDevice)); 	// copy from host to device memory
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(Point) * k), cudaMemcpyHostToDevice));
+
 	//TODO shall I allocate something to constant memory ?
 
 	for(int ep = 0 ; ep < epochsLimit; ep++) {
@@ -123,7 +122,7 @@ __host__ void kMeansCuda(vector<Point> *points_h, int epochsLimit, int k){
 
 
 	    CUDA_CHECK_RETURN(cudaMemcpy(points_h, points_d, sizeof(Point) * DATA_SIZE, cudaMemcpyDeviceToHost)); //device to host
-	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k), cudaMemcpyHostToDevice));
+	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k, cudaMemcpyHostToDevice));
 
 
 	    if (!clustersChanged) {
@@ -137,7 +136,7 @@ __host__ void kMeansCuda(vector<Point> *points_h, int epochsLimit, int k){
 	 }
 
 	CUDA_CHECK_RETURN(cudaMemcpy(points_h, points_d, sizeof(Point) * DATA_SIZE, cudaMemcpyDeviceToHost));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k), cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k, cudaMemcpyHostToDevice));
 
 	 writeCsv(points_h, &centroids_h, __INT_MAX__, k);
 	 if (lastEpoch == epochsLimit){
