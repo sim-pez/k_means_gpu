@@ -44,6 +44,6 @@ void writeCsv(float* points, float* centroids, float* clusters, int iteration, i
 }
 
 void initialize(){
-    std::filesystem::remove_all("../output/");
-    std::filesystem::create_directory("../output/");
+    //std::filesystem::remove_all("../output/");
+    //std::filesystem::create_directory("../output/");
 }
