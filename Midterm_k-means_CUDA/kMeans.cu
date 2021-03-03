@@ -4,7 +4,6 @@
 #include <numeric>
 #include <cuda.h>
 #include <random>
-#include <vector>
 
 #include "operations.h"
 #include "Point.h"
@@ -30,35 +29,27 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 //---------------------------------------------------------------------------------------------------------------------------------------
 void updateCentroids(float *points_h, float *centroids_h, float  *assignedCentroids_h, int k){
 
-    vector<int> numPoints(k, 0);
-    vector<float> sumX(k, 0.0);
-    vector<float> sumY(k, 0.0);
-    vector<float> sumZ(k, 0.0);
+    int numPoints[k];
+    float sumX[k] = {0};
+    float sumY[k] = {0};
+    float sumZ[k]= {0};
 
-
-    for (int i = 0; i< DATA_SIZE; i++) {
-        int pointCluster = *(assignedCentroids_h + i);
-        int xP = i * 3;
-        int yP = i * 3 + 1;
-        int zP = i * 3 + 2;
-        sumX.at(pointCluster) += *(points_h + xP);
-        sumY.at(pointCluster) += *(points_h + yP);
-        sumZ.at(pointCluster) += *(points_h + zP);
-        numPoints.at(pointCluster)++;
+    for (int i = 0; i < DATA_SIZE; i++) {
+        int pointCluster = assignedCentroids_h[i];
+        sumX[pointCluster] += points_h[i * 3];
+        sumY[pointCluster] += points_h[i * 3 + 1];
+        sumZ[pointCluster] += points_h[i * 3 + 2];
+        numPoints[pointCluster]++;
     }
 
     for (int i = 0; i < k; i++){
-        float newX = sumX.at(i) / numPoints.at(i);
-        float newY = sumY.at(i) / numPoints.at(i);
-        float newZ = sumZ.at(i) / numPoints.at(i);
+        float newX = sumX[i] / numPoints[i];
+        float newY = sumY[i] / numPoints[i];
+        float newZ = sumZ[i] / numPoints[i];
 
-        int xC = i * 3;
-        int yC = i * 3 + 1;
-        int zC = i * 3 + 2;
-
-        *(centroids_h + xC) = newX;
-        *(centroids_h + yC) = newY;
-        *(centroids_h + zC) = newZ;
+        centroids_h[i * 3] = newX;
+        centroids_h[i * 3 + 1] = newY;
+        centroids_h[i * 3 + 2] = newZ;
     }
 
 }
@@ -80,7 +71,6 @@ __global__ void assignClusters(float *points_d, float *centroids_d, float *assig
         	int distanceX = centroids_d[j * 3] - pX;
         	int distanceY = centroids_d[j * 3 + 1] - pY;
         	int distanceZ = centroids_d[j * 3 + 2] - pZ;
-
             float distance = sqrt(pow(distanceX , 2) + pow(distanceY , 2) + pow(distanceZ , 2));
             if (distance < clusterDistance) {
                 clusterDistance = distance;
@@ -118,8 +108,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 
 	CUDA_CHECK_RETURN(cudaMemcpyToSymbol(points_h, points_d, sizeof(float) * DATA_SIZE));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
-	//CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
-
+	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
 
 	int epoch = 0;
 	while(epoch < epochsLimit) {
