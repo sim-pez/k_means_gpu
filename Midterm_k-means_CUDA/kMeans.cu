@@ -106,9 +106,9 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * k * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void**)&assignedCentroids_d, sizeof(float) * DATA_SIZE));
 
-	CUDA_CHECK_RETURN(cudaMemcpyToSymbol(points_h, points_d, sizeof(float) * DATA_SIZE));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_d, assignedCentroids_h, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
 
 	int epoch = 0;
 	while(epoch < epochsLimit) {
@@ -119,7 +119,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 	    bool *ptrCgd_h = &clusterChanged_h;
 	    bool *clusterChanged_d;
 	    CUDA_CHECK_RETURN(cudaMalloc(&clusterChanged_d, sizeof(bool)));
-	    CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyHostToDevice));
+	    CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
 	    assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, k, clusterChanged_d); //why + 127?
 	    CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 	    cudaDeviceSynchronize();
@@ -135,12 +135,12 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 
 	    //Step 3: update centroids
 	    updateCentroids(points_h, centroids_h, assignedCentroids_h, k);
-	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k, cudaMemcpyHostToDevice));
+	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(Point) * k, cudaMemcpyHostToDevice));
 
 	    epoch++;
 	 }
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(Point) * k, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(Point) * k, cudaMemcpyHostToDevice));
 
 	 writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__, k);
 	 if (epoch == epochsLimit){
