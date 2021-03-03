@@ -8,22 +8,22 @@
 #include "definitions.h"
 
 float *readCsv() {
-    vector<Point> points;
     string line;
-    ifstream file("../dataset.csv", ifstream::in);
+    ifstream file("dataset.csv", ifstream::in);
 
-    float *data = (float *) malloc(sizeof(float) * DATA_SIZE);
+    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
 
-    for (int i = 0; i < DATA_SIZE; i = i + 3 ){
-        getline(file, line);
+    int i = 0;
+    for (int i = 0; i < DATA_SIZE; i++){
+    	getline(file, line);
         stringstream lineStream(line);
         string bit;
         getline(lineStream, bit, ','); // x
-        data[i] = stof(bit);
+        data[i * 3] = stof(bit);
         getline(lineStream, bit, ','); // y
-        data[i + 1] = stof(bit);
+        data[i * 3 + 1] = stof(bit);
         getline(lineStream, bit, ','); // z
-        data[i + 2] = stof(bit);
+        data[i * 3 + 2] = stof(bit);
     }
     file.close();
     return data;
