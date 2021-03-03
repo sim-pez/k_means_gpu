@@ -65,7 +65,7 @@ void updateCentroids(float *points_h, float *centroids_h, float  *assignedCentro
 }
 
 
-__device__ void assignClusters(float *points_d, float *centroids_d, float *assignedCentroids_d, int k, bool *clusterChanged){
+__global__ void assignClusters(float *points_d, float *centroids_d, float *assignedCentroids_d, int k, bool *clusterChanged){
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < DATA_SIZE){
@@ -81,10 +81,10 @@ __device__ void assignClusters(float *points_d, float *centroids_d, float *assig
         for (int j = 0; j < k; j++) {
 
         	int xC = k * 3;
-        	int yC = k * 3 +1;
-        	int zC = k * 3 +2;
+        	int yC = k * 3 + 1;
+        	int zC = k * 3 + 2;
 
-            float distance = distance3d(*(points_d + xP), *(points_d + yP), *(points_d + zP), *(centroids_d + xC), *(centroids_d + yC), *(centroids_d + zC));
+            float distance = sqrt(pow(x1 - y1, 2) + pow(x2 - y2, 2) + pow(x3 - y3, 2));
             if (distance < clusterDistance) {
                 clusterDistance = distance;
                 oldCluster = currentCluster;
@@ -111,7 +111,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 		int randomLocation = distribution(engine) % 3; // it is a random x axis coordinate
 	    int xP = randomLocation;        // getting the coordinates location  of the random point choosen as centroid
 	    int yP = randomLocation + 1;
-	    int zP = randomLocation * 2;
+	    int zP = randomLocation + 2;
 
 	    int xC = k * 3;                // getting the coordinates location of the centroid
 	    int yC = k * 3 + 1;
@@ -124,19 +124,16 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 
 
 	//device memory managing
-	__device__ __constant__ float *points_d;
-	__device__ float *centroids_d;
-	__device__ float *assignedCentroids_d;
+	float *points_d;
+	float *centroids_d;
+	float *assignedCentroids_d;
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3)); // allocate device memory
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * k * 3));
-	CUDA_CHECK_RETURN(cudaMalloc((void**)&assignedCentroids_d, sizeof(float) * DATA_SIZE));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(float) * DATA_SIZE));
 
 	CUDA_CHECK_RETURN(cudaMemcpyToSymbol(points_h, points_d, sizeof(float) * DATA_SIZE));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyHostToDevice));
 
-
-
-	//TODO shall I allocate something to constant memory ?
 
 	for(int ep = 0 ; ep < epochsLimit; ep++) {
 
@@ -148,9 +145,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 	    assignClusters<<(DATA_SIZE + 127) / 128 , 128>>(points_d, centroids_d, assignedCentroids_d, k, &clusterChanged); //why + 127?
 	    cudaDeviceSynchronize();
 
-
 	    float *assignedCentroids_h;
-	    CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_d, assignedCentroids_h, sizeof(float) * DATA_SIZE, cudaMemcpyDeviceToHost));
+	    CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(float) * DATA_SIZE, cudaMemcpyDeviceToHost));
 
 
 	    if (!clusterChanged) {
