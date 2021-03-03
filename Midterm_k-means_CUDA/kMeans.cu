@@ -135,12 +135,12 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 
 	    //Step 3: update centroids
 	    updateCentroids(points_h, centroids_h, assignedCentroids_h, k);
-	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(Point) * k, cudaMemcpyHostToDevice));
+	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
 
 	    epoch++;
 	 }
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(Point) * k, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
 
 	 writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__, k);
 	 if (epoch == epochsLimit){
