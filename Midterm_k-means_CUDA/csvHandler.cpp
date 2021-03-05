@@ -29,7 +29,7 @@ float *readCsv() {
     return data;
 }
 
-void writeCsv(float* points, float* centroids, float* clusters, int iteration, int k) {
+void writeCsv(float* points, float* centroids, int* clusters, int iteration, int k) {
     ofstream fileIterations("../output/k" + to_string(k) + "iteration" + to_string(iteration) + ".csv", ifstream::out);
     for (int i = 0; i < DATA_SIZE; i++ ){
     	fileIterations << points[i * 3] << "," << points[i * 3 + 1] << "," << points[i * 3 + 2] << "," << clusters[i] << "\n";
