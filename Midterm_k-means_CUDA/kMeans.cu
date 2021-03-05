@@ -27,34 +27,46 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 
 //---------------------------------------------------------------------------------------------------------------------------------------
-void updateCentroids(float *points_h, float *centroids_h, int *assignedCentroids_h, int k){
+__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, float *sums_d){ //float *sums_d
 
-    int numPoints[k];
-    float sumX[k] = {0};
-    float sumY[k] = {0};
-    float sumZ[k]= {0};
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    for (int i = 0; i < DATA_SIZE; i++) {
-        int pointCluster = assignedCentroids_h[i];
-        sumX[pointCluster] += points_h[i * 3];
-        sumY[pointCluster] += points_h[i * 3 + 1];
-        sumZ[pointCluster] += points_h[i * 3 + 2];
-        numPoints[pointCluster]++;
-    }
+	__shared__ float sums_s[CLUSTER_NUM * 3]; //TODO need atomicAdd()
+	__shared__ int numPoints_s[CLUSTER_NUM]; //TODO better unsigned int
+	if(threadIdx.x < CLUSTER_NUM * 3) {
+		if(threadIdx.x < CLUSTER_NUM) {
+			numPoints_s[threadIdx.x] = 0;
+		}
+		sums_s[threadIdx.x] = 0.0f;
+	}
+	__syncthreads();
 
-    for (int i = 0; i < k; i++){
-        float newX = sumX[i] / numPoints[i];
-        float newY = sumY[i] / numPoints[i];
-        float newZ = sumZ[i] / numPoints[i];
 
-        centroids_h[i * 3] = newX;
-        centroids_h[i * 3 + 1] = newY;
-        centroids_h[i * 3 + 2] = newZ;
-    }
+	if (tid < DATA_SIZE){
+		int cluster = assignedCentroids_d[tid];
+		sums_s[cluster * 3] += points_d[tid * 3];
+		sums_s[cluster * 3 + 1] += points_d[tid * 3 + 1];
+		sums_s[cluster * 3 + 2] += points_d[tid * 3 + 2];
+		numPoints_s[cluster]++;
+	}
 
+	__syncthreads();
+
+	if(threadIdx.x < CLUSTER_NUM * 3) {
+		atomicAdd(&sums_d[threadIdx.x], sums_s[threadIdx.x]);
+		if(threadIdx.x < CLUSTER_NUM) {
+			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
+		}
+	}
+	__syncthreads(); //FIXME
+
+	if (tid < CLUSTER_NUM * 3){
+		int newValue = sums_d[tid] / numPoints_d[tid / 3];
+		centroids_d[tid] = newValue;
+	}
 }
 
-__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, int k, bool *clusterChanged){
+__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, bool *clusterChanged){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -66,7 +78,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
         int oldCluster = assignedCentroids_d[tid];
         int currentCluster = oldCluster;
 
-        for (int j = 0; j < k; j++) {
+        for (int j = 0; j < CLUSTER_NUM; j++) {
         	int distanceX = centroids_d[j * 3] - pX;
         	int distanceY = centroids_d[j * 3 + 1] - pY;
         	int distanceZ = centroids_d[j * 3 + 2] - pZ;
@@ -74,7 +86,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
             if (distance < clusterDistance) {
                 clusterDistance = distance;
                 oldCluster = currentCluster;
-                currentCluster = k;
+                currentCluster = j;
             }
         }
 
@@ -83,33 +95,39 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
             assignedCentroids_d[tid] = currentCluster;
         }
     }
-
 }
 
-__host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
+__host__ void kMeansCuda(float *points_h, int epochsLimit){
+	//device memory managing
+	float *points_d, *centroids_d, *sums_d;
+	int *assignedCentroids_d, * clusterSize_d,  *numPoints_d;
+	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
+	int *clusterSize_h = (int*) malloc(sizeof(int) * CLUSTER_NUM);
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * CLUSTER_NUM * 3));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&clusterSize_d, sizeof(int) * CLUSTER_NUM));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sums_d, sizeof(float) * CLUSTER_NUM * 3));
+
+	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
+
+
 	// Step 1: Create k random centroids
-	float *centroids_h = (float*) malloc(sizeof(float) * k * 3);
+	printf("Step1 \n");
+	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3);
 	srand(time(NULL));
-	int randNum = rand() % (DATA_SIZE / k);
-	for (int i = 0; i < k; i++){
-		int randomLocation = randNum + DATA_SIZE*i/k;
+	int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
+	for (int i = 0; i < CLUSTER_NUM; i++){
+		int randomLocation = randNum + DATA_SIZE*i/CLUSTER_NUM;
 		centroids_h[i * 3] = points_h[randomLocation  * 3];
 		centroids_h[i * 3 + 1] = points_h[randomLocation * 3 + 1];
 		centroids_h[i * 3 + 2] = points_h[randomLocation * 3 + 2];
+		clusterSize_h[i] = 0;
 	}
 
-	//device memory managing
-    float *points_d, *centroids_d;
-    int *assignedCentroids_d;
-	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * k * 3));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
-
-	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_d, assignedCentroids_h, sizeof(int) * DATA_SIZE, cudaMemcpyHostToDevice));
-
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(clusterSize_d, clusterSize_h, sizeof(int) * CLUSTER_NUM, cudaMemcpyHostToDevice));
 
 	bool clusterChanged_h = false;
 	bool *ptrCgd_h = &clusterChanged_h;
@@ -118,31 +136,41 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int k){
 
 	int epoch = 0;
 	while(epoch < epochsLimit) {
-	    writeCsv(points_h, centroids_h, assignedCentroids_h, epoch, k);
+	    writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
 	    //Step 2: assign dataPoints to the clusters, based on the distance from its centroid
+
+	    printf("Step2 \n");
 	    CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
-	    assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, k, clusterChanged_d); //why + 127?
+	    CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
+	    CUDA_CHECK_RETURN(cudaMemset(sums_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
+	    assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d); //why + 127?
 
 	    cudaDeviceSynchronize();
 	    CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 
 	    CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 	    if (!clusterChanged_h) {
-	        break;          // exit if clusters has not been changed
+	        printf("Nothing changed...exiting \n");
+	    	break;          // exit if clusters has not been changed
 	    }
 	    else {
 	    	clusterChanged_h = false;
 	    }
 
 	    //Step 3: update centroids
-	    updateCentroids(points_h, centroids_h, assignedCentroids_h, k);
-	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
+
+	    printf("Step3 \n");
+	    updateCentroids<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d, sums_d);
+	    cudaDeviceSynchronize();
+	    printf("finished updating centroids \n");
+	    CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 	    epoch++;
+	    printf("iteration completed, starting a new one... \n");
 	 }
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * k * 3, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
-	writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__, k);
+	writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__);
 	if (epoch == epochsLimit){
 	    cout << "Maximum number of iterations reached!";
 	}
@@ -167,6 +195,6 @@ int main(int argc, char **argv)
 	int maxIterations = 500;
 	initialize();
 	float *data_h = readCsv();
-	kMeansCuda(data_h, maxIterations, CLUSTER_NUM);
+	kMeansCuda(data_h, maxIterations);
 
 }
