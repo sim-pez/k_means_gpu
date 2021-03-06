@@ -29,8 +29,8 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-	__shared__ float sums_s[CLUSTER_NUM * 3]; //TODO need atomicAdd()
-	__shared__ int numPoints_s[CLUSTER_NUM]; //
+	__shared__ float sums_s[CLUSTER_NUM * 3];
+	__shared__ int numPoints_s[CLUSTER_NUM];
 	if(threadIdx.x < CLUSTER_NUM * 3) {
 		if(threadIdx.x < CLUSTER_NUM) {
 			numPoints_s[threadIdx.x] = 0;
@@ -57,8 +57,8 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 		}
 	}
 
-	//calculate means
 	__threadfence();
+	//calculate means
 
 	for (int i = 0; i < CLUSTER_NUM; i++) {
 		centroids_d[i * 3] = centroids_d[i * 3] / numPoints_d[i];
@@ -80,7 +80,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
         int oldCluster = assignedCentroids_d[tid];
         int currentCluster = oldCluster;
 
-        for (int j = 0; j < CLUSTER_NUM; j++) {
+        for (int j = 0; j < CLUSTER_NUM; j++) {  //TODO tiling?
         	int distanceX = centroids_d[j * 3] - pX;
         	int distanceY = centroids_d[j * 3 + 1] - pY;
         	int distanceZ = centroids_d[j * 3 + 2] - pZ;
@@ -96,6 +96,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
             *clusterChanged = true;
             assignedCentroids_d[tid] = currentCluster;
         }
+
     }
 }
 
@@ -104,7 +105,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	float *points_d, *centroids_d;
 	int *assignedCentroids_d, *numPoints_d;
 	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
-	//int *clusterSize_h = (int*) malloc(sizeof(int) * CLUSTER_NUM);
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * CLUSTER_NUM * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
@@ -114,7 +114,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 
 	// Step 1: Create k random centroids
-	printf("Step1 \n");
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3);
 	srand(time(NULL));
 	int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
@@ -137,13 +136,11 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
 
-		printf("Step2 \n");
 		CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
 		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d); //why + 127?
-
 		cudaDeviceSynchronize();
-		CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 
+		CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 		if (!clusterChanged_h) {
 		    printf("Nothing changed...exiting \n");
@@ -155,24 +152,21 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 		//Step 3: update centroids
 
-		printf("Step3 \n");
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
 		updateCentroids<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
-		printf("finished updating centroids \n");
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
+		printf("iteration %d complete\n", epoch);
 		epoch++;
-		printf("iteration completed, starting a new one... \n");
 	}
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
 	//writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__);
 	if (epoch == epochsLimit){
-		cout << "Maximum number of iterations reached!";
+		printf("Maximum number of iterations reached! \n");
 	}
-	cout << "iterations = " << epoch << "\n";
 
 	 // Free host memory //TODO check if they are correct
 	free(points_h);
