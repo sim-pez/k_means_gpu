@@ -188,9 +188,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 }
 
 int main(int argc, char **argv){
-	int maxIterations = 10;
 	initialize();
 	float *data_h = readCsv();
-	kMeansCuda(data_h, maxIterations);
+	kMeansCuda(data_h, MAX_ITERATIONS);
 
 }
