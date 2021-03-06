@@ -61,6 +61,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	//calculate means
 
 	if(tid < CLUSTER_NUM * 3){
+		printf("centroidX= %d", centroids_d[tid]);
 		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
 	}
 
