@@ -32,6 +32,7 @@
 								<option id="nvcc.compiler.option.level.1273595908" name="Generate host debug information (-g)" superClass="nvcc.compiler.option.level" value="true" valueType="boolean"/>
 								<option defaultValue="nvcc.compiler.optimization.level.none" id="nvcc.compiler.optimization.level.731270431" name="Optimization Level" superClass="nvcc.compiler.optimization.level" valueType="enumerated"/>
 								<option id="nvcc.compiler.pic.108586529" name="Position Independent Code (-fPIC)" superClass="nvcc.compiler.pic"/>
+								<option id="nvcc.compiler.cpp11option.552295048" superClass="nvcc.compiler.cpp11option" value="true" valueType="boolean"/>
 								<inputType id="nvcc.compiler.input.cu.2062876993" superClass="nvcc.compiler.input.cu"/>
 								<inputType id="nvcc.compiler.input.cpp.1707733341" superClass="nvcc.compiler.input.cpp"/>
 								<inputType id="nvcc.compiler.input.c.353119938" superClass="nvcc.compiler.input.c"/>
@@ -143,4 +144,5 @@
 			<resource resourceType="PROJECT" workspacePath="/Midterm_k-means_CUDA"/>
 		</configuration>
 	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 </cproject>
