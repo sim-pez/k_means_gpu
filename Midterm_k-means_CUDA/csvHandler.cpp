@@ -37,7 +37,7 @@ void writeCsv(float* points, float* centroids, int* clusters, int iteration) {
     fileIterations.close();
 
     ofstream fileCentroids("/output/k" + to_string(CLUSTER_NUM) + "centroids" + to_string(iteration) + ".csv", ifstream::out);
-    for (int i = 0; i < DATA_SIZE; i++ ){
+    for (int i = 0; i < CLUSTER_NUM; i++ ){
         fileCentroids << centroids[i * 3] << "," << centroids[i * 3 + 1] << "," << centroids[i * 3 + 2] << "\n";
     }
     fileIterations.close();

@@ -56,7 +56,6 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
 		}
 	}
-	__syncthreads();
 
 	//calculate means
 	__threadfence();
@@ -169,7 +168,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
-	writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__);
+	//writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__);
 	if (epoch == epochsLimit){
 		cout << "Maximum number of iterations reached!";
 	}
@@ -189,7 +188,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 }
 
 int main(int argc, char **argv){
-	int maxIterations = 500;
+	int maxIterations = 10;
 	initialize();
 	float *data_h = readCsv();
 	kMeansCuda(data_h, maxIterations);
