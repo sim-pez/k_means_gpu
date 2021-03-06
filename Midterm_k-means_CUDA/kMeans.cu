@@ -58,7 +58,14 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-	//TODO need to calculate means
+	//calculate means
+	__threadfence();
+
+	for (int i = 0; i < CLUSTER_NUM; i++) {
+		centroids_d[i * 3] = centroids_d[i * 3] / numPoints_d[i];
+		centroids_d[i * 3 + 1] = centroids_d[i * 3 + 1] / numPoints_d[i];
+		centroids_d[i * 3 + 2] = centroids_d[i * 3 + 2] / numPoints_d[i];
+	}
 }
 
 
