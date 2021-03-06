@@ -41,9 +41,9 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
-		atomicAdd(&sums_s[cluster * 3], centroids_d[tid * 3]);
-		atomicAdd(&sums_s[cluster * 3 + 1], centroids_d[tid * 3 + 1]);
-		atomicAdd(&sums_s[cluster * 3 + 2], centroids_d[tid * 3 + 2]);
+		atomicAdd(&sums_s[cluster * 3], points_d[tid * 3]);
+		atomicAdd(&sums_s[cluster * 3 + 1], points_d[tid * 3 + 1]);
+		atomicAdd(&sums_s[cluster * 3 + 2], points_d[tid * 3 + 2]);
 		atomicAdd(&numPoints_s[cluster], 1);
 	}
 
@@ -60,6 +60,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	//calculate means
 
 	if(tid < CLUSTER_NUM * 3){
+		printf("centroidX= %d", centroids_d[tid]);
 		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
 	}
 
