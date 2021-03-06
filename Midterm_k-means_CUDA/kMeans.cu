@@ -38,7 +38,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-	printf(" %d \n", assignedCentroids_d[tid]); //FIXME
+	//printf(" %d \n", assignedCentroids_d[tid]); //FIXME
 
 	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
@@ -61,8 +61,8 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	//calculate means
 
 	if(tid < CLUSTER_NUM * 3){
-		printf("centroidX= %d", centroids_d[tid]);
 		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
+		printf("centroids_d[%d]= %f \n", tid,centroids_d[tid]);
 	}
 
 }
@@ -71,30 +71,36 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 __global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, bool *clusterChanged){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	__shared__ float centroids_s[CLUSTER_NUM * 3];
+	if (threadIdx.x < CLUSTER_NUM * 3) {
+		centroids_s[threadIdx.x] = centroids_d[threadIdx.x];
+	}
 
-	float clusterDistance = __FLT_MAX__;
-    int oldCluster = assignedCentroids_d[tid];
-    int currentCluster = oldCluster;
-    float pX = points_d[tid * 3];
-    float pY = points_d[tid * 3 + 1];
-    float pZ = points_d[tid * 3 + 2];
+	if(tid < DATA_SIZE) {
+		float clusterDistance = __FLT_MAX__;
+		int oldCluster = assignedCentroids_d[tid];
+		int currentCluster = oldCluster;
+		float pX = points_d[tid * 3];
+		float pY = points_d[tid * 3 + 1];
+		float pZ = points_d[tid * 3 + 2];
 
 
-    for (int j = 0; j < CLUSTER_NUM; j++) {  //TODO tiling?
-        int distanceX = centroids_d[j * 3] - pX;
-        int distanceY = centroids_d[j * 3 + 1] - pY;
-        int distanceZ = centroids_d[j * 3 + 2] - pZ;
-        float distance = sqrt(pow(distanceX, 2) + pow(distanceY, 2) + pow(distanceZ, 2));
-        if (distance < clusterDistance) {
-            clusterDistance = distance;
-            currentCluster = j;
-        }
-    }
+		for (int j = 0; j < CLUSTER_NUM; j++) {  //TODO tiling?
+			int distanceX = centroids_s[j * 3] - pX;
+			int distanceY = centroids_s[j * 3 + 1] - pY;
+			int distanceZ = centroids_s[j * 3 + 2] - pZ;
+			float distance = sqrt(pow(distanceX, 2) + pow(distanceY, 2) + pow(distanceZ, 2));
+			if (distance < clusterDistance) {
+				clusterDistance = distance;
+				currentCluster = j;
+			}
+		}
 
-    if (currentCluster != oldCluster) {
-       *clusterChanged = true;
-       assignedCentroids_d[tid] = currentCluster;
-    }
+		if (currentCluster != oldCluster) {
+		   *clusterChanged = true;
+		   assignedCentroids_d[tid] = currentCluster;
+		}
+	}
 
 }
 
@@ -139,6 +145,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 		CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
+		writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
 		if (!clusterChanged_h) {
 		    printf("Nothing changed...exiting \n");
 		    break;          // exit if clusters has not been changed
@@ -155,7 +162,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		cudaDeviceSynchronize();
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
 
-		writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
 		printf("iteration %d complete\n", epoch + 1);
 		epoch++;
 	}
