@@ -28,7 +28,6 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 __global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
 	__shared__ float sums_s[CLUSTER_NUM * 3];
 	__shared__ int numPoints_s[CLUSTER_NUM];
 	if(threadIdx.x < CLUSTER_NUM * 3) {
@@ -42,9 +41,9 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
-		atomicAdd(&centroids_d[tid * 3], sums_s[cluster * 3]);
-		atomicAdd(&centroids_d[tid * 3 + 1], sums_s[cluster * 3 + 1]);
-		atomicAdd(&centroids_d[tid * 3 + 2], sums_s[cluster * 3 + 2]);
+		atomicAdd(&sums_s[cluster * 3], centroids_d[tid * 3]);
+		atomicAdd(&sums_s[cluster * 3 + 1], centroids_d[tid * 3 + 1]);
+		atomicAdd(&sums_s[cluster * 3 + 2], centroids_d[tid * 3 + 2]);
 		atomicAdd(&numPoints_s[cluster], 1);
 	}
 
@@ -60,11 +59,10 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	__threadfence();
 	//calculate means
 
-	for (int i = 0; i < CLUSTER_NUM; i++) {
-		centroids_d[i * 3] = centroids_d[i * 3] / numPoints_d[i];
-		centroids_d[i * 3 + 1] = centroids_d[i * 3 + 1] / numPoints_d[i];
-		centroids_d[i * 3 + 2] = centroids_d[i * 3 + 2] / numPoints_d[i];
+	if(tid < CLUSTER_NUM * 3){
+		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
 	}
+
 }
 
 
@@ -157,7 +155,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		updateCentroids<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
-		printf("iteration %d complete\n", epoch);
+		printf("iteration %d complete\n", epoch + 1);
 		epoch++;
 	}
 
