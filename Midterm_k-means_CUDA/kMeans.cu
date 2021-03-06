@@ -5,8 +5,6 @@
 #include <cuda.h>
 #include <random>
 
-#include "operations.h"
-#include "Point.h"
 #include "csvHandler.h"
 #include "definitions.h"
 

@@ -1,6 +1,4 @@
 
-#include "Point.h"
-
 using namespace std;
 
 float* readCsv();
