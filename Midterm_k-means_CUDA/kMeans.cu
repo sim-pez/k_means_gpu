@@ -26,7 +26,7 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 
 //---------------------------------------------------------------------------------------------------------------------------------------
 __global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
-
+ // more parallelizable
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ float sums_s[CLUSTER_NUM * 3];
 	__shared__ int numPoints_s[CLUSTER_NUM];
@@ -38,7 +38,6 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-
 	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
 		atomicAdd(&sums_s[cluster * 3], points_d[tid * 3]);
@@ -49,6 +48,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 	__syncthreads();
 
+	//commit to global memory
 	if(threadIdx.x < CLUSTER_NUM * 3) {
 		atomicAdd(&centroids_d[threadIdx.x], sums_s[threadIdx.x]);
 		if(threadIdx.x < CLUSTER_NUM) {
@@ -116,7 +116,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
 
 	// Step 1: Create k random centroids
-	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3);
+	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); //TODO use pinned memory?
 	srand(time(NULL));
 	int randNum = 5;
 	//int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
@@ -157,9 +157,9 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
-		updateCentroids<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
+		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
-		calculateMeans<<<1, CLUSTER_NUM*3>>>(centroids_d, numPoints_d);
+		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32>>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
 
