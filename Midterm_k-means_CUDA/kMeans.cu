@@ -38,7 +38,6 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-	//printf(" %d \n", assignedCentroids_d[tid]); //FIXME
 
 	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
@@ -62,7 +61,6 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 	if(tid < CLUSTER_NUM * 3){
 		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
-		printf("centroids_d[%d]= %f \n", tid,centroids_d[tid]);
 	}
 
 }
@@ -85,10 +83,10 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 		float pZ = points_d[tid * 3 + 2];
 
 
-		for (int j = 0; j < CLUSTER_NUM; j++) {  //TODO tiling?
-			int distanceX = centroids_s[j * 3] - pX;
-			int distanceY = centroids_s[j * 3 + 1] - pY;
-			int distanceZ = centroids_s[j * 3 + 2] - pZ;
+		for (int j = 0; j < CLUSTER_NUM; j++) {
+			float distanceX = centroids_s[j * 3] - pX;
+			float distanceY = centroids_s[j * 3 + 1] - pY;
+			float distanceZ = centroids_s[j * 3 + 2] - pZ;
 			float distance = sqrt(pow(distanceX, 2) + pow(distanceY, 2) + pow(distanceZ, 2));
 			if (distance < clusterDistance) {
 				clusterDistance = distance;
@@ -120,7 +118,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3);
 	srand(time(NULL));
-	int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
+	int randNum = 5;
+	//int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
 	for (int i = 0; i < CLUSTER_NUM; i++){
 		int randomLocation = randNum + DATA_SIZE*i/CLUSTER_NUM;
 		centroids_h[i * 3] = points_h[randomLocation  * 3];
@@ -140,14 +139,16 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
 
 		CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
-		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d); //why + 127?
+		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d);
 		cudaDeviceSynchronize();
 
 		CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 		writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
+
+
 		if (!clusterChanged_h) {
-		    printf("Nothing changed...exiting \n");
+		    //printf("Nothing changed...exiting \n");
 		    break;          // exit if clusters has not been changed
 		}
 		else {
@@ -162,7 +163,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		cudaDeviceSynchronize();
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
 
-		printf("iteration %d complete\n", epoch + 1);
+		//printf("iteration %d complete\n", epoch + 1);
 		epoch++;
 	}
 
@@ -172,6 +173,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	if (epoch == epochsLimit){
 		printf("Maximum number of iterations reached! \n");
 	}
+
+	printf("iterations = %d", epoch);
 
 	 // Free host memory //TODO check if they are correct
 	free(points_h);
