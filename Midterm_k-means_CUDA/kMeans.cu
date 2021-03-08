@@ -56,13 +56,14 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 		}
 	}
 
-	__threadfence();
-	//calculate means
+}
+
+__global__ void calculateMeans(float *centroids_d, int *numPoints_d){
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(tid < CLUSTER_NUM * 3){
-		centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
+			centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
 	}
-
 }
 
 
@@ -114,7 +115,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
 
-
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3);
 	srand(time(NULL));
@@ -151,9 +151,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		    //printf("Nothing changed...exiting \n");
 		    break;          // exit if clusters has not been changed
 		}
-		else {
-		    clusterChanged_h = false;
-		}
+		else { clusterChanged_h = false; }
 
 		//Step 3: update centroids
 
@@ -161,7 +159,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
 		updateCentroids<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
+		calculateMeans<<<1, CLUSTER_NUM*3>>>(centroids_d, numPoints_d);
+		cudaDeviceSynchronize();
 		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
+
 
 		//printf("iteration %d complete\n", epoch + 1);
 		epoch++;
@@ -169,14 +170,13 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
-	//writeCsv(points_h, centroids_h, assignedCentroids_h, __INT_MAX__);
 	if (epoch == epochsLimit){
 		printf("Maximum number of iterations reached! \n");
 	}
 
 	printf("iterations = %d", epoch);
 
-	 // Free host memory //TODO check if they are correct
+	 // Free host memory
 	free(points_h);
 	free(centroids_h);
 	free(assignedCentroids_h);
