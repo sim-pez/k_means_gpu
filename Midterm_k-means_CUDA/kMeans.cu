@@ -8,6 +8,7 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
+#include <unistd.h>
 #include <chrono>
 using namespace std::chrono;
 
@@ -28,6 +29,16 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 
 //---------------------------------------------------------------------------------------------------------------------------------------
+
+__global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating duration of kmeans exec.
+  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  float ia, ib;
+  ia = ib = 0.0f;
+  ib += ia + tid;
+}
+
+//----------------------------------------------------------------------------------------------------------------------------------------
+
 __global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
  // more parallelizable
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -182,7 +193,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	printf("iterations = %d \n", epoch);
 
 	 // Free host memory
-	free(points_h);
+	//free(points_h);
 	free(centroids_h);
 	free(assignedCentroids_h);
 
@@ -197,10 +208,29 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 int main(int argc, char **argv){
 	initialize();
 	float *data_h = readCsv();
-	auto start = high_resolution_clock::now();
-	kMeansCuda(data_h, MAX_ITERATIONS);
-	auto end = high_resolution_clock::now();
-	auto duration = duration_cast<microseconds>(end - start);
-	cout<< "duration = " << duration.count() << " microseconds" << endl;
+
+	int numIter = 10;
+	int *durations = (int*)malloc(sizeof(int) * numIter);
+
+	warm_up_gpu<<<128, 128>>>();  // avoiding cold start...
+
+	for (int i=0; i<numIter; i++) {
+		auto start = high_resolution_clock::now();
+		kMeansCuda(data_h, MAX_ITERATIONS);
+		auto end = high_resolution_clock::now();
+		durations[i] = duration_cast<microseconds>(end - start).count();
+		cout<< "duration of iteration " << i << " was of " << durations[i] << " microseconds" << endl;
+		usleep(1000000); // wait for 1 sec
+	}
+
+	int partialSum = 0;
+	for (int j=0; j<numIter; j++) {
+		partialSum += durations[j];
+	}
+	int meanDuration = partialSum / numIter;
+
+	cout<< "Kmeans finished with a mean duration of " << meanDuration << " microseconds" << endl;
+
+	free(data_h);
 
 }
