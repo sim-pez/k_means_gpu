@@ -8,6 +8,9 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
+#include <chrono>
+using namespace std::chrono;
+
 using namespace std;
 
 /**
@@ -118,8 +121,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); //TODO use pinned memory?
 	srand(time(NULL));
-	int randNum = 5;
-	//int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
+	//int randNum = 5;
+	int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
 	for (int i = 0; i < CLUSTER_NUM; i++){
 		int randomLocation = randNum + DATA_SIZE*i/CLUSTER_NUM;
 		centroids_h[i * 3] = points_h[randomLocation  * 3];
@@ -142,9 +145,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d);
 		cudaDeviceSynchronize();
 
-		CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
+		//write a csv file at each iteration to check how k-means is assigning clusters
+		//CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
-		writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
+		//writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
 
 
 		if (!clusterChanged_h) {
@@ -155,26 +159,27 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 
 		//Step 3: update centroids
 
+		// set numPoints_d and centroids_d to 0 so updateCentroids can do is stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
 		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32>>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
-		CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
+		//CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));  // use it in case you want the code to write the csv's at each iteration
 
 
 		//printf("iteration %d complete\n", epoch + 1);
 		epoch++;
 	}
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
+	// CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice)); // why?
 
 	if (epoch == epochsLimit){
 		printf("Maximum number of iterations reached! \n");
 	}
 
-	printf("iterations = %d", epoch);
+	printf("iterations = %d \n", epoch);
 
 	 // Free host memory
 	free(points_h);
@@ -192,6 +197,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 int main(int argc, char **argv){
 	initialize();
 	float *data_h = readCsv();
+	auto start = high_resolution_clock::now();
 	kMeansCuda(data_h, MAX_ITERATIONS);
+	auto end = high_resolution_clock::now();
+	auto duration = duration_cast<microseconds>(end - start);
+	cout<< "duration = " << duration.count() << " microseconds" << endl;
 
 }
