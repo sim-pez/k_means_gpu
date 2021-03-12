@@ -4,8 +4,8 @@
 
 
 #define CLUSTER_NUM 5
-#define DATA_SIZE 1000
-#define MAX_ITERATIONS 400
+#define DATA_SIZE 10000
+#define MAX_ITERATIONS 50000
 #define TPB 128
 
 

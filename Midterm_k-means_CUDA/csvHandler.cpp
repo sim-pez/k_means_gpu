@@ -7,14 +7,14 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-float *readCsv(string j) {
+float *readCsv(int j) {
     string line;
-    ifstream file("input/dataset" + j + ".csv", ifstream::in);
+    ifstream file("input/dataset" + to_string(j) + ".csv", ifstream::in);
 
-    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
+    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * j * 3);
 
     int i = 0;
-    for (int i = 0; i < DATA_SIZE; i++){
+    for (int i = 0; i < DATA_SIZE * j; i++){
     	getline(file, line);
         stringstream lineStream(line);
         string bit;

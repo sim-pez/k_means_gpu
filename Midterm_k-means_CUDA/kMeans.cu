@@ -39,7 +39,7 @@ __global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating
 
 //----------------------------------------------------------------------------------------------------------------------------------------
 
-__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
+__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, int numDataset){
  // more parallelizable
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ float sums_s[CLUSTER_NUM * 3];
@@ -52,7 +52,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-	if (tid < DATA_SIZE){
+	if (tid < DATA_SIZE * numDataset){
 		int cluster = assignedCentroids_d[tid];
 		atomicAdd(&sums_s[cluster * 3], points_d[tid * 3]);
 		atomicAdd(&sums_s[cluster * 3 + 1], points_d[tid * 3 + 1]);
@@ -81,7 +81,7 @@ __global__ void calculateMeans(float *centroids_d, int *numPoints_d){
 }
 
 
-__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, bool *clusterChanged){
+__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, bool *clusterChanged, int numDataset){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ float centroids_s[CLUSTER_NUM * 3];
@@ -89,7 +89,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 		centroids_s[threadIdx.x] = centroids_d[threadIdx.x];
 	}
 
-	if(tid < DATA_SIZE) {
+	if(tid < DATA_SIZE * numDataset) {
 		float clusterDistance = __FLT_MAX__;
 		int oldCluster = assignedCentroids_d[tid];
 		int currentCluster = oldCluster;
@@ -117,25 +117,25 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 
 }
 
-__host__ void kMeansCuda(float *points_h, int epochsLimit){
+__host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 	//device memory managing
 	float *points_d, *centroids_d;
 	int *assignedCentroids_d, *numPoints_d;
-	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
+	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE * numDataset);
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * numDataset * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * CLUSTER_NUM * 3));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
 
-	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
+	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * numDataset * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
 
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); //TODO use pinned memory?
 	srand(time(NULL));
 	//int randNum = 5;
-	int randNum = rand() % (DATA_SIZE / CLUSTER_NUM);
+	int randNum = rand() % ((DATA_SIZE * numDataset) / CLUSTER_NUM);
 	for (int i = 0; i < CLUSTER_NUM; i++){
-		int randomLocation = randNum + DATA_SIZE*i/CLUSTER_NUM;
+		int randomLocation = randNum + (DATA_SIZE * numDataset) * i / CLUSTER_NUM;
 		centroids_h[i * 3] = points_h[randomLocation  * 3];
 		centroids_h[i * 3 + 1] = points_h[randomLocation * 3 + 1];
 		centroids_h[i * 3 + 2] = points_h[randomLocation * 3 + 2];
@@ -155,7 +155,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
 
 		CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
-		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d);
+		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d, numDataset);
 		cudaDeviceSynchronize();
 
 		//write a csv file at each iteration to check how k-means is assigning clusters
@@ -175,9 +175,9 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		// set numPoints_d and centroids_d to 0 so updateCentroids can do is stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
-		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
+		updateCentroids<<<(DATA_SIZE * numDataset + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d, numDataset);
 		cudaDeviceSynchronize();
-		calculateMeans<<<1, ((CLUSTER_NUM * 3 + 31) / 32) * 32 >>>(centroids_d, numPoints_d);
+		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32 >>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		//CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));  // use it in case you want the code to write the csv's at each iteration
 
@@ -192,7 +192,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		printf("Maximum number of iterations reached! \n");
 	}
 
-	//printf("iterations = %d \n", epoch);
+	printf("iterations = %d \n", epoch);
 
 	 // Free host memory
 	//free(points_h);
@@ -217,7 +217,7 @@ int main(int argc, char **argv){
 
 	for(int j=0; j<numDataset; j++){ // run and test duration of kmeans for each dataset in input folder
 
-		float *data_h = readCsv(to_string(j + 1));
+		float *data_h = readCsv(j + 1);
 		int numIter = 10;
 		int *durations = (int*)malloc(sizeof(int) * numIter);
 
@@ -225,7 +225,7 @@ int main(int argc, char **argv){
 
 		for (int i=0; i<numIter; i++) { // run kmeans numIter times...
 			auto start = high_resolution_clock::now();
-			kMeansCuda(data_h, MAX_ITERATIONS);
+			kMeansCuda(data_h, MAX_ITERATIONS, j + 1);
 			auto end = high_resolution_clock::now();
 			durations[i] = duration_cast<microseconds>(end - start).count();
 			//cout<< "duration of iteration " << i << " was of " << durations[i] << " microseconds" << endl;
