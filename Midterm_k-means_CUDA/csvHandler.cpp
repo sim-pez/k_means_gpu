@@ -7,9 +7,9 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-float *readCsv() {
+float *readCsv(string j) {
     string line;
-    ifstream file("dataset.csv", ifstream::in);
+    ifstream file("input/dataset" + j + ".csv", ifstream::in);
 
     float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
 
@@ -41,6 +41,14 @@ void writeCsv(float* points, float* centroids, int* clusters, int iteration) {
         fileCentroids << centroids[i * 3] << "," << centroids[i * 3 + 1] << "," << centroids[i * 3 + 2] << "\n";
     }
     fileIterations.close();
+}
+
+void writeDurationCsv(int* meanVectorDuration) {
+	ofstream fileDuration("/output/durationCUDA.csv", ifstream::out);
+	for (int i=0; i<10; i++) { //TODO change 10
+		fileDuration << meanVectorDuration << "\n";
+	}
+	fileDuration.close();
 }
 
 void initialize(){

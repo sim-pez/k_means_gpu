@@ -190,7 +190,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		printf("Maximum number of iterations reached! \n");
 	}
 
-	printf("iterations = %d \n", epoch);
+	//printf("iterations = %d \n", epoch);
 
 	 // Free host memory
 	//free(points_h);
@@ -206,31 +206,45 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 }
 
 int main(int argc, char **argv){
-	initialize();
-	float *data_h = readCsv();
 
-	int numIter = 10;
-	int *durations = (int*)malloc(sizeof(int) * numIter);
+	initialize();
+	int numDataset = 10;
+	int *meanVectorDuration = (int*)malloc(sizeof(int) * numDataset);
 
 	warm_up_gpu<<<128, 128>>>();  // avoiding cold start...
 
-	for (int i=0; i<numIter; i++) {
-		auto start = high_resolution_clock::now();
-		kMeansCuda(data_h, MAX_ITERATIONS);
-		auto end = high_resolution_clock::now();
-		durations[i] = duration_cast<microseconds>(end - start).count();
-		cout<< "duration of iteration " << i << " was of " << durations[i] << " microseconds" << endl;
-		usleep(1000000); // wait for 1 sec
+	for(int j=0; j<numDataset; j++){ // run and test duration of kmeans for each dataset in input folder
+
+		float *data_h = readCsv(to_string(j + 1));
+		int numIter = 10;
+		int *durations = (int*)malloc(sizeof(int) * numIter);
+
+
+
+		for (int i=0; i<numIter; i++) { // run kmeans numIter times...
+			auto start = high_resolution_clock::now();
+			kMeansCuda(data_h, MAX_ITERATIONS);
+			auto end = high_resolution_clock::now();
+			durations[i] = duration_cast<microseconds>(end - start).count();
+			//cout<< "duration of iteration " << i << " was of " << durations[i] << " microseconds" << endl;
+			usleep(1000000); // wait for 1 sec
+		}
+
+		int partialSum = 0;
+		for (int k=0; k<numIter; k++) { // ...and evaluate the mean of the duration
+			partialSum += durations[k];
+		}
+		int meanDuration = partialSum / numIter;
+
+		cout<< "Kmeans finished with a mean duration of " << meanDuration << " microseconds" << endl;
+		meanVectorDuration[j] = meanDuration;
+
+		free(data_h);
+		free(durations);
 	}
 
-	int partialSum = 0;
-	for (int j=0; j<numIter; j++) {
-		partialSum += durations[j];
-	}
-	int meanDuration = partialSum / numIter;
-
-	cout<< "Kmeans finished with a mean duration of " << meanDuration << " microseconds" << endl;
-
-	free(data_h);
+	writeDurationCsv(meanVectorDuration);
+	free(meanVectorDuration);
 
 }
+
