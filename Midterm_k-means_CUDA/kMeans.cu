@@ -148,6 +148,8 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 	bool *clusterChanged_d;
 	CUDA_CHECK_RETURN(cudaMalloc(&clusterChanged_d, sizeof(bool)));
 
+
+
 	int epoch = 0;
 	while(epoch < epochsLimit) {
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
@@ -175,7 +177,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit){
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
 		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
-		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32>>>(centroids_d, numPoints_d);
+		calculateMeans<<<1, ((CLUSTER_NUM * 3 + 31) / 32) * 32 >>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		//CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));  // use it in case you want the code to write the csv's at each iteration
 
