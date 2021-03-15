@@ -44,9 +44,9 @@ void writeCsv(float* points, float* centroids, int* clusters, int iteration) {
 }
 
 void writeDurationCsv(int* meanVectorDuration) {
-	ofstream fileDuration("/output/durationCUDA.csv", ifstream::out);
+	ofstream fileDuration("durationCUDA.csv", ifstream::out);
 	for (int i=0; i<10; i++) { //TODO change 10
-		fileDuration << meanVectorDuration << "\n";
+		fileDuration << meanVectorDuration[i] << "\n";
 	}
 	fileDuration.close();
 }

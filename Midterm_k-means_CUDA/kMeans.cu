@@ -218,7 +218,7 @@ int main(int argc, char **argv){
 	for(int j=0; j<numDataset; j++){ // run and test duration of kmeans for each dataset in input folder
 
 		float *data_h = readCsv(j + 1);
-		int numIter = 10;
+		int numIter = 100;
 		int *durations = (int*)malloc(sizeof(int) * numIter);
 
 
