@@ -131,11 +131,15 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); //TODO use pinned memory?
-	srand(time(NULL));
+	//srand(time(NULL));
 	//int randNum = 5;
-	int randNum = rand() % ((DATA_SIZE * numDataset) / CLUSTER_NUM);
+	//int randNum = rand() % ((DATA_SIZE * numDataset) / CLUSTER_NUM);
+	random_device rd;
+	default_random_engine engine(rd());
+	uniform_int_distribution<int> distribution(0, DATA_SIZE * numDataset - 1);
 	for (int i = 0; i < CLUSTER_NUM; i++){
-		int randomLocation = randNum + (DATA_SIZE * numDataset) * i / CLUSTER_NUM;
+		int randomLocation = distribution(engine);
+		//int randomLocation = randNum + (DATA_SIZE * numDataset) * i / CLUSTER_NUM;
 		centroids_h[i * 3] = points_h[randomLocation  * 3];
 		centroids_h[i * 3 + 1] = points_h[randomLocation * 3 + 1];
 		centroids_h[i * 3 + 2] = points_h[randomLocation * 3 + 2];
@@ -229,7 +233,7 @@ int main(int argc, char **argv){
 			auto end = high_resolution_clock::now();
 			durations[i] = duration_cast<microseconds>(end - start).count();
 			//cout<< "duration of iteration " << i << " was of " << durations[i] << " microseconds" << endl;
-			usleep(1000000); // wait for 1 sec
+			//usleep(1000000); // wait for 1 sec
 		}
 
 		int partialSum = 0;
