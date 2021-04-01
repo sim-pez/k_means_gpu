@@ -215,8 +215,8 @@ int main(int argc, char **argv){
 
 	initialize();
 	float *data_h = readCsv(1);
-	auto start = high_resolution_clock::now();
 	warm_up_gpu<<<128, 128>>>();  // avoiding cold start...
+	auto start = high_resolution_clock::now();
 	kMeansCuda(data_h, MAX_ITERATIONS, 1);
 	auto end = high_resolution_clock::now();
 	auto duration = duration_cast<microseconds>(end - start);
