@@ -127,10 +127,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
 
-	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * numDataset * 3, cudaMemcpyHostToDevice)); // TODO copy in constant memory
+	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * numDataset * 3, cudaMemcpyHostToDevice)); 
 
 	// Step 1: Create k random centroids
-	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); //TODO use pinned memory?
+	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); 
 	//srand(time(NULL));
 	//int randNum = 5;
 	//int randNum = rand() % ((DATA_SIZE * numDataset) / CLUSTER_NUM);
@@ -190,7 +190,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 		epoch++;
 	}
 
-	// CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice)); // why?
 
 	if (epoch == epochsLimit){
 		printf("Maximum number of iterations reached! \n");
