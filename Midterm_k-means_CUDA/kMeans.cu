@@ -166,7 +166,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d, numDataset);
 		cudaDeviceSynchronize();
 
-		//write a csv file at each iteration to check how k-means is assigning clusters
 		//CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 		//writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
