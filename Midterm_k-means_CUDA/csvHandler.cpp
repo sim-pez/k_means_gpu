@@ -7,14 +7,14 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-float *readCsv(int j) {
+float *readCsv() {
     string line;
-    ifstream file("input/dataset" + to_string(j) + ".csv", ifstream::in);
+    ifstream file("input/dataset.csv", ifstream::in);
 
-    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * j * 3);
+    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
 
     int i = 0;
-    for (int i = 0; i < DATA_SIZE * j; i++){
+    for (int i = 0; i < DATA_SIZE; i++){
     	getline(file, line);
         stringstream lineStream(line);
         string bit;
@@ -29,14 +29,14 @@ float *readCsv(int j) {
     return data;
 }
 
-void writeCsv(float* points, float* centroids, int* clusters, int iteration) {
-    ofstream fileIterations("/output/k" + to_string(CLUSTER_NUM) + "iteration" + to_string(iteration) + ".csv", ifstream::out);
+void writeCsv(float* points, float* centroids, int* clusters) {
+    ofstream fileIterations("/output/points.csv", ifstream::out);
     for (int i = 0; i < DATA_SIZE; i++ ){
     	fileIterations << points[i * 3] << "," << points[i * 3 + 1] << "," << points[i * 3 + 2] << "," << clusters[i] << "\n";
     }
     fileIterations.close();
 
-    ofstream fileCentroids("/output/k" + to_string(CLUSTER_NUM) + "centroids" + to_string(iteration) + ".csv", ifstream::out);
+    ofstream fileCentroids("/output/centroids.csv", ifstream::out);
     for (int i = 0; i < CLUSTER_NUM; i++ ){
         fileCentroids << centroids[i * 3] << "," << centroids[i * 3 + 1] << "," << centroids[i * 3 + 2] << "\n";
     }
@@ -52,6 +52,6 @@ void writeDurationCsv(int* meanVectorDuration) {
 }
 
 void initialize(){
-    //std::filesystem::remove_all("../output/");
-    //std::filesystem::create_directory("../output/");
+	//std::filesystem::remove_all("../output/");
+	//std::filesystem::create_directory("../output/");
 }

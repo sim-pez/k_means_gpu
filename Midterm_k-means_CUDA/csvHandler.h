@@ -1,9 +1,9 @@
 
 using namespace std;
 
-float* readCsv(int i);
+float* readCsv();
 
-void writeCsv(float* points, float* centroids, int* clusters, int iteration);
+void writeCsv(float* points, float* centroids, int* clusters);
 
 void writeDurationCsv(int* meanVectorDuration);
 

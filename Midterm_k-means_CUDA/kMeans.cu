@@ -131,14 +131,22 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); 
-	random_device rd;
-	default_random_engine engine(rd());
-	uniform_int_distribution<int> distribution(0, DATA_SIZE * numDataset - 1);
+	srand (time(NULL));
+    vector<int> extractedIndex;
+
 	for (int i = 0; i < CLUSTER_NUM; i++){
-		int randomLocation = distribution(engine);
-		centroids_h[i * 3] = points_h[randomLocation  * 3];
-		centroids_h[i * 3 + 1] = points_h[randomLocation * 3 + 1];
-		centroids_h[i * 3 + 2] = points_h[randomLocation * 3 + 2];
+        bool alreadySelected = false;
+        int randomIndex;
+        do {                        //avoid repeating
+        	randomIndex = rand() % DATA_SIZE - i;
+        	for (int e : extractedIndex) {
+        		if (randomIndex == e)
+        	         alreadySelected = true;
+        	}
+        } while (alreadySelected);
+		centroids_h[i * 3] = points_h[randomIndex  * 3];
+		centroids_h[i * 3 + 1] = points_h[randomIndex * 3 + 1];
+		centroids_h[i * 3 + 2] = points_h[randomIndex * 3 + 2];
 	}
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
@@ -209,15 +217,19 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 int main(int argc, char **argv){
 
 	initialize();
-	float *data_h = readCsv(1);
-	warm_up_gpu<<<128, 128>>>();  // avoiding cold start...
+	float *data_h = readCsv();
+
+	warm_up_gpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
 	kMeansCuda(data_h, MAX_ITERATIONS, 1);
 	auto end = high_resolution_clock::now();
-	auto duration = duration_cast<microseconds>(end - start);
-	cout<< "duration = " << duration.count() << " microseconds" << endl;
+
+	auto ms_int = duration_cast<milliseconds>(end - start);
+	cout << "duration in milliseconds: " << ms_int.count() <<"\n";
 
 	free(data_h);
+
+    return ms_int.count();
 
 }
 
