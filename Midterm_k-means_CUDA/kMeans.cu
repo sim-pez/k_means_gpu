@@ -81,7 +81,7 @@ __global__ void calculateMeans(float *centroids_d, int *numPoints_d){
 }
 
 
-__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, bool *clusterChanged, int numDataset){
+__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, int numDataset){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ float centroids_s[CLUSTER_NUM * 3];
@@ -110,7 +110,6 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 		}
 
 		if (currentCluster != oldCluster) {
-		   *clusterChanged = true;
 		   assignedCentroids_d[tid] = currentCluster;
 		}
 	}
@@ -151,31 +150,15 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
-	bool clusterChanged_h = false;
-	bool *ptrCgd_h = &clusterChanged_h;
-	bool *clusterChanged_d;
-	CUDA_CHECK_RETURN(cudaMalloc(&clusterChanged_d, sizeof(bool)));
-
-
-
 	int epoch = 0;
 	while(epoch < epochsLimit) {
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
 
-		CUDA_CHECK_RETURN(cudaMemcpy(clusterChanged_d, ptrCgd_h, sizeof(bool), cudaMemcpyHostToDevice));
-		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, clusterChanged_d, numDataset);
+		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numDataset);
 		cudaDeviceSynchronize();
 
 		//CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
-		CUDA_CHECK_RETURN(cudaMemcpy(ptrCgd_h, clusterChanged_d, sizeof(bool), cudaMemcpyDeviceToHost));
 		//writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
-
-
-		if (!clusterChanged_h) {
-		    //printf("Nothing changed...exiting \n");
-		    break;          // exit if clusters has not been changed
-		}
-		else { clusterChanged_h = false; }
 
 		//Step 3: update centroids
 
@@ -193,12 +176,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 		epoch++;
 	}
 
-
-	if (epoch == epochsLimit){
-		printf("Maximum number of iterations reached! \n");
-	}
-
-	printf("iterations = %d \n", epoch);
+	printf("%d iterations completed \n", epoch);
+	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
+	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset, cudaMemcpyDeviceToHost));
+	writeCsv(points_h, centroids_h, assignedCentroids_h);
 
 	 // Free host memory
 	//free(points_h);
@@ -209,7 +190,6 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 	cudaFree(points_d);
 	cudaFree(centroids_d);
 	cudaFree(assignedCentroids_d);
-	cudaFree(clusterChanged_d);
 	cudaFree(numPoints_d);
 }
 
@@ -220,7 +200,7 @@ int main(int argc, char **argv){
 
 	warm_up_gpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
-	kMeansCuda(data_h, MAX_ITERATIONS, 1);
+	kMeansCuda(data_h, MAX_ITERATIONS, 10);
 	auto end = high_resolution_clock::now();
 
 	auto ms_int = duration_cast<milliseconds>(end - start);
