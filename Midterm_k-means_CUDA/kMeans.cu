@@ -39,105 +39,60 @@ __global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating
 
 //----------------------------------------------------------------------------------------------------------------------------------------
 
-__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-	__shared__ float sums_s[CLUSTER_NUM * 3];
-	__shared__ int numPoints_s[CLUSTER_NUM];
-	if(threadIdx.x < CLUSTER_NUM * 3) {
-		if(threadIdx.x < CLUSTER_NUM) {
-			numPoints_s[threadIdx.x] = 0;
-		}
-		sums_s[threadIdx.x] = 0.0f;
-	}
-	__syncthreads();
-
-	if (tid < DATA_SIZE){
-		int cluster = assignedCentroids_d[tid];
-		atomicAdd(&sums_s[cluster * 3], points_d[tid * 3]);
-		atomicAdd(&sums_s[cluster * 3 + 1], points_d[tid * 3 + 1]);
-		atomicAdd(&sums_s[cluster * 3 + 2], points_d[tid * 3 + 2]);
-		atomicAdd(&numPoints_s[cluster], 1);
-	}
-
-	__syncthreads();
-
-	//commit to global memory
-	if(threadIdx.x < CLUSTER_NUM * 3) {
-		atomicAdd(&centroids_d[threadIdx.x], sums_s[threadIdx.x]);
-		if(threadIdx.x < CLUSTER_NUM) {
-			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
-		}
-	}
-
-
-
-}
-
-__global__ void updateCentroidsNotShared(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < DATA_SIZE){
-		int cluster = assignedCentroids_d[tid];
-		atomicAdd(&centroids_d[cluster * 3], points_d[tid * 3]);
-		atomicAdd(&centroids_d[cluster * 3 + 1], points_d[tid * 3 + 1]);
-		atomicAdd(&centroids_d[cluster * 3 + 2], points_d[tid * 3 + 2]);
-		atomicAdd(&numPoints_d[cluster], 1);
-	}
-	__syncthreads();
-
-}
-
-__global__ void calculateMeans(float *centroids_d, int *numPoints_d){
+__global__ void calculateMeans(float *centroids_d, float *sums_d, int *numPoints_d){
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(tid < CLUSTER_NUM * 3){
-			centroids_d[tid] = centroids_d[tid] / numPoints_d[tid / 3];
+			centroids_d[tid] = sums_d[tid] / numPoints_d[tid / 3];
 	}
 }
 
 
-__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d){
-
+__global__ void kMeansKernel(float *points_d, float *centroids_d, int *assignedCentroids_d, float *sums_d, int *numPoints_d) {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	__shared__ float centroids_s[CLUSTER_NUM * 3];
-	if (threadIdx.x < CLUSTER_NUM * 3) {
-		centroids_s[threadIdx.x] = centroids_d[threadIdx.x];
-	}
+		__shared__ float centroids_s[CLUSTER_NUM * 3];
+		if (threadIdx.x < CLUSTER_NUM * 3) {
+			centroids_s[threadIdx.x] = centroids_d[threadIdx.x];
+		}
 
-	if(tid < DATA_SIZE) {
-		float clusterDistance = __FLT_MAX__;
-		int oldCluster = assignedCentroids_d[tid];
-		int currentCluster = oldCluster;
-		float pX = points_d[tid * 3];
-		float pY = points_d[tid * 3 + 1];
-		float pZ = points_d[tid * 3 + 2];
+		if(tid < DATA_SIZE) {
+			float clusterDistance = __FLT_MAX__;
+			int oldCluster = assignedCentroids_d[tid];
+			int currentCluster = oldCluster;
+			float pX = points_d[tid * 3];
+			float pY = points_d[tid * 3 + 1];
+			float pZ = points_d[tid * 3 + 2];
 
 
-		for (int j = 0; j < CLUSTER_NUM; j++) {
-			float distanceX = centroids_s[j * 3] - pX;
-			float distanceY = centroids_s[j * 3 + 1] - pY;
-			float distanceZ = centroids_s[j * 3 + 2] - pZ;
-			float distance = sqrt(pow(distanceX, 2) + pow(distanceY, 2) + pow(distanceZ, 2));
-			if (distance < clusterDistance) {
-				clusterDistance = distance;
-				currentCluster = j;
+			for (int j = 0; j < CLUSTER_NUM; j++) {
+				float distanceX = centroids_s[j * 3] - pX;
+				float distanceY = centroids_s[j * 3 + 1] - pY;
+				float distanceZ = centroids_s[j * 3 + 2] - pZ;
+				float distance = sqrt(pow(distanceX, 2) + pow(distanceY, 2) + pow(distanceZ, 2));
+				if (distance < clusterDistance) {
+					clusterDistance = distance;
+					currentCluster = j;
+				}
 			}
-		}
 
-		if (currentCluster != oldCluster) {
-		   assignedCentroids_d[tid] = currentCluster;
-		}
-	}
+			//assign cluster and update partial sum
+			assignedCentroids_d[tid] = currentCluster;
+			atomicAdd(&sums_d[currentCluster * 3], points_d[tid * 3]);
+			atomicAdd(&sums_d[currentCluster * 3 + 1], points_d[tid * 3 + 1]);
+			atomicAdd(&sums_d[currentCluster * 3 + 2], points_d[tid * 3 + 2]);
+			atomicAdd(&numPoints_d[currentCluster], 1);
 
+		}
 }
 
 __host__ void kMeansCuda(float *points_h){
 	//device memory managing
-	float *points_d, *centroids_d;
+	float *points_d, *centroids_d, *sumPoints_d;
 	int *assignedCentroids_d, *numPoints_d;
 	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * CLUSTER_NUM * 3));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPoints_d, sizeof(float) * CLUSTER_NUM * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
 
@@ -170,22 +125,11 @@ __host__ void kMeansCuda(float *points_h){
 
 	int epoch = 0;
 	while(epoch < MAX_ITERATIONS) {
-		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
-
-		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d);
-		cudaDeviceSynchronize();
-
-		//Step 3: update centroids
-
-		// set numPoints_d and centroids_d to 0 so updateCentroids can do its stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
-		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
-		updateCentroidsNotShared<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
+		CUDA_CHECK_RETURN(cudaMemset(sumPoints_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
+		kMeansKernel<<<(DATA_SIZE + 127) / 128, 128>>>(points_d, centroids_d, assignedCentroids_d, sumPoints_d, numPoints_d);
 		cudaDeviceSynchronize();
-		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32 >>>(centroids_d, numPoints_d);
-		cudaDeviceSynchronize();
-
-
+		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 31, 32>>>(centroids_d, sumPoints_d, numPoints_d);
 		epoch++;
 	}
 
