@@ -15,11 +15,11 @@ def plot_k_means():
         cluster.append(df_dataset.loc[df_dataset[3] == i])
 
     for i in range(k):
-        plt.scatter(cluster[i].iloc[:, 0], cluster[i].iloc[:, 1])
+        plt.scatter(cluster[i].iloc[:, 0], cluster[i].iloc[:, 1], s=4)
 
-    plt.scatter(df_centroids.iloc[:, 0], df_centroids.iloc[:, 1], marker='*', c='black')
+    plt.scatter(df_centroids.iloc[:, 0], df_centroids.iloc[:, 1], s=8, marker='*', c='black')
     plt.grid()
-    plt.gca().set_aspect('equal', adjustable='box')
+    plt.gca().set_aspect('equal')
     plt.show()
 
 plot_k_means()

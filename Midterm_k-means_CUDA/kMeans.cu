@@ -180,7 +180,7 @@ __host__ void kMeansCuda(float *points_h){
 		// set numPoints_d and centroids_d to 0 so updateCentroids can do its stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
-		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
+		updateCentroidsNotShared<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32 >>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
