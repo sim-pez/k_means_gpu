@@ -15,14 +15,14 @@ for a in array:
     a.append(0)
 nparray = np.array(array)
 
-df = pd.DataFrame(nparray)
-lenght = len(df)
+# df = pd.DataFrame(nparray)
+# lenght = len(df)
 	
-for i in range(lenght):
-	plt.scatter(df.iloc[i, 0], df.iloc[i, 1])
-plt.grid()
-plt.gca().set_aspect('equal', adjustable='box')
-plt.show()	
+# for i in range(lenght):
+#     plt.scatter(df.iloc[i, 0], df.iloc[i, 1])
+# plt.grid()
+# plt.gca().set_aspect('equal', adjustable='box')
+# plt.show()	
 
 if not os.path.exists('input'):
     os.makedirs('input')

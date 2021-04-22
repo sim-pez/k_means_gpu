@@ -39,7 +39,7 @@ __global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating
 
 //----------------------------------------------------------------------------------------------------------------------------------------
 
-__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, int numDataset){
+__global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	__shared__ float sums_s[CLUSTER_NUM * 3];
@@ -52,7 +52,7 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 	}
 	__syncthreads();
 
-	if (tid < DATA_SIZE * numDataset){
+	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
 		atomicAdd(&sums_s[cluster * 3], points_d[tid * 3]);
 		atomicAdd(&sums_s[cluster * 3 + 1], points_d[tid * 3 + 1]);
@@ -74,9 +74,9 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 
 }
 
-__global__ void updateCentroidsNotShared(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, int numDataset){
+__global__ void updateCentroidsNotShared(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d){
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < DATA_SIZE * numDataset){
+	if (tid < DATA_SIZE){
 		int cluster = assignedCentroids_d[tid];
 		atomicAdd(&centroids_d[cluster * 3], points_d[tid * 3]);
 		atomicAdd(&centroids_d[cluster * 3 + 1], points_d[tid * 3 + 1]);
@@ -96,7 +96,7 @@ __global__ void calculateMeans(float *centroids_d, int *numPoints_d){
 }
 
 
-__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d, int numDataset){
+__global__ void assignClusters(float *points_d, float *centroids_d, int *assignedCentroids_d){
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	__shared__ float centroids_s[CLUSTER_NUM * 3];
@@ -104,7 +104,7 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 		centroids_s[threadIdx.x] = centroids_d[threadIdx.x];
 	}
 
-	if(tid < DATA_SIZE * numDataset) {
+	if(tid < DATA_SIZE) {
 		float clusterDistance = __FLT_MAX__;
 		int oldCluster = assignedCentroids_d[tid];
 		int currentCluster = oldCluster;
@@ -131,17 +131,17 @@ __global__ void assignClusters(float *points_d, float *centroids_d, int *assigne
 
 }
 
-__host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
+__host__ void kMeansCuda(float *points_h){
 	//device memory managing
 	float *points_d, *centroids_d;
 	int *assignedCentroids_d, *numPoints_d;
-	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE * numDataset);
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * numDataset * 3));
+	int *assignedCentroids_h = (int*) malloc(sizeof(int) * DATA_SIZE);
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&points_d, sizeof(float) * DATA_SIZE * 3));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroids_d, sizeof(float) * CLUSTER_NUM * 3));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * DATA_SIZE));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
 
-	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * numDataset * 3, cudaMemcpyHostToDevice)); 
+	CUDA_CHECK_RETURN(cudaMemcpy(points_d, points_h, sizeof(float) * DATA_SIZE * 3, cudaMemcpyHostToDevice));
 
 	// Step 1: Create k random centroids
 	float *centroids_h = (float*) malloc(sizeof(float) * CLUSTER_NUM * 3); 
@@ -169,10 +169,10 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
 	int epoch = 0;
-	while(epoch < epochsLimit) {
+	while(epoch < MAX_ITERATIONS) {
 		//Step 2: assign dataPoints to the clusters, based on the distance from its centroid
 
-		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numDataset);
+		assignClusters<<<(DATA_SIZE + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d);
 		cudaDeviceSynchronize();
 
 		//Step 3: update centroids
@@ -180,7 +180,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 		// set numPoints_d and centroids_d to 0 so updateCentroids can do its stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
-		updateCentroids<<<(DATA_SIZE * numDataset + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d, numDataset);
+		updateCentroids<<<(DATA_SIZE + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d);
 		cudaDeviceSynchronize();
 		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32 >>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
@@ -191,7 +191,7 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 
 	//printf("%d iterations completed \n", epoch);
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
-	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset, cudaMemcpyDeviceToHost));
+	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 	writeCsv(points_h, centroids_h, assignedCentroids_h);
 
 	 // Free host memory
@@ -213,7 +213,7 @@ int main(int argc, char **argv){
 
 	warm_up_gpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
-	kMeansCuda(data_h, MAX_ITERATIONS, 5);
+	kMeansCuda(data_h);
 	auto end = high_resolution_clock::now();
 
 	auto ms_int = duration_cast<milliseconds>(end - start);
