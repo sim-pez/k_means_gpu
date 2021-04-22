@@ -40,8 +40,8 @@ __global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating
 //----------------------------------------------------------------------------------------------------------------------------------------
 
 __global__ void updateCentroids(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, int numDataset){
- // more parallelizable
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
 	__shared__ float sums_s[CLUSTER_NUM * 3];
 	__shared__ int numPoints_s[CLUSTER_NUM];
 	if(threadIdx.x < CLUSTER_NUM * 3) {
@@ -69,6 +69,21 @@ __global__ void updateCentroids(float *points_d, float *centroids_d, int *assign
 			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
 		}
 	}
+
+
+
+}
+
+__global__ void updateCentroidsNotShared(float *points_d, float *centroids_d, int *assignedCentroids_d, int *numPoints_d, int numDataset){
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if (tid < DATA_SIZE * numDataset){
+		int cluster = assignedCentroids_d[tid];
+		atomicAdd(&centroids_d[cluster * 3], points_d[tid * 3]);
+		atomicAdd(&centroids_d[cluster * 3 + 1], points_d[tid * 3 + 1]);
+		atomicAdd(&centroids_d[cluster * 3 + 2], points_d[tid * 3 + 2]);
+		atomicAdd(&numPoints_d[cluster], 1);
+	}
+	__syncthreads();
 
 }
 
@@ -143,10 +158,13 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
         	         alreadySelected = true;
         	}
         } while (alreadySelected);
-		centroids_h[i * 3] = points_h[randomIndex  * 3];
+
+        centroids_h[i * 3] = points_h[randomIndex  * 3];
 		centroids_h[i * 3 + 1] = points_h[randomIndex * 3 + 1];
 		centroids_h[i * 3 + 2] = points_h[randomIndex * 3 + 2];
 	}
+
+
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_d, centroids_h, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyHostToDevice));
 
@@ -157,32 +175,27 @@ __host__ void kMeansCuda(float *points_h, int epochsLimit, int numDataset){
 		assignClusters<<<(DATA_SIZE * numDataset + 127)/ 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numDataset);
 		cudaDeviceSynchronize();
 
-		//CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
-		//writeCsv(points_h, centroids_h, assignedCentroids_h, epoch);
-
 		//Step 3: update centroids
 
-		// set numPoints_d and centroids_d to 0 so updateCentroids can do is stuff to evaluate the new position of the centroids
+		// set numPoints_d and centroids_d to 0 so updateCentroids can do its stuff to evaluate the new position of the centroids
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(centroids_d, 0 , sizeof(float) * CLUSTER_NUM * 3));
 		updateCentroids<<<(DATA_SIZE * numDataset + 127) / 128 , 128>>>(points_d, centroids_d, assignedCentroids_d, numPoints_d, numDataset);
 		cudaDeviceSynchronize();
 		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32, 32 >>>(centroids_d, numPoints_d);
 		cudaDeviceSynchronize();
-		//CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));  // use it in case you want the code to write the csv's at each iteration
 
 
-		//printf("iteration %d complete\n", epoch + 1);
 		epoch++;
 	}
 
-	printf("%d iterations completed \n", epoch);
+	//printf("%d iterations completed \n", epoch);
 	CUDA_CHECK_RETURN(cudaMemcpy(centroids_h, centroids_d, sizeof(float) * CLUSTER_NUM * 3, cudaMemcpyDeviceToHost));
 	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE * numDataset, cudaMemcpyDeviceToHost));
 	writeCsv(points_h, centroids_h, assignedCentroids_h);
 
 	 // Free host memory
-	//free(points_h);
+	free(points_h);
 	free(centroids_h);
 	free(assignedCentroids_h);
 
@@ -200,13 +213,11 @@ int main(int argc, char **argv){
 
 	warm_up_gpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
-	kMeansCuda(data_h, MAX_ITERATIONS, 10);
+	kMeansCuda(data_h, MAX_ITERATIONS, 5);
 	auto end = high_resolution_clock::now();
 
 	auto ms_int = duration_cast<milliseconds>(end - start);
 	cout << "duration in milliseconds: " << ms_int.count() <<"\n";
-
-	free(data_h);
 
     return ms_int.count();
 
