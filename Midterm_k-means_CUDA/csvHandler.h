@@ -3,7 +3,7 @@ using namespace std;
 
 float* readCsv();
 
-void writeCsv(float* points, float* centroids, int* clusters);
+void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters);
 
 void writeDurationCsv(int* meanVectorDuration);
 

@@ -8,7 +8,7 @@
 #include "definitions.h"
 
 float *readCsv() {
-    string line;
+	string line;
     ifstream file("input/dataset.csv", ifstream::in);
 
     float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
@@ -29,16 +29,16 @@ float *readCsv() {
     return data;
 }
 
-void writeCsv(float* points, float* centroids, int* clusters) {
+void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters) {
     ofstream fileIterations("output/points.csv", ifstream::out);
     for (int i = 0; i < DATA_SIZE; i++ ){
-    	fileIterations << points[i * 3] << "," << points[i * 3 + 1] << "," << points[i * 3 + 2] << "," << clusters[i] << "\n";
+    	fileIterations << pointsX[i] << "," << pointsY[i] << "," << pointsZ[i ] << "," << clusters[i] << "\n";
     }
     fileIterations.close();
 
     ofstream fileCentroids("output/centroids.csv", ifstream::out);
     for (int i = 0; i < CLUSTER_NUM; i++ ){
-        fileCentroids << centroids[i * 3] << "," << centroids[i * 3 + 1] << "," << centroids[i * 3 + 2] << "\n";
+        fileCentroids << centroidsX[i] << "," << centroidsY[i] << "," << centroidsZ[i] << "\n";
     }
     fileIterations.close();
 }

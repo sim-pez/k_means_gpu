@@ -5,7 +5,7 @@
 
 #define CLUSTER_NUM 10
 #define DATA_SIZE 1000000
-#define MAX_ITERATIONS 50
+#define MAX_ITERATIONS 100
 
 
 //---------------------------------------------------------------------------
