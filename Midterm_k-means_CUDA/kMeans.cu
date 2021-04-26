@@ -55,10 +55,19 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 		__shared__ float centroidsX_s[CLUSTER_NUM];
 		__shared__ float centroidsY_s[CLUSTER_NUM];
 		__shared__ float centroidsZ_s[CLUSTER_NUM];
+		__shared__ float sumsX_s[CLUSTER_NUM];
+		__shared__ float sumsY_s[CLUSTER_NUM];
+		__shared__ float sumsZ_s[CLUSTER_NUM];
+		__shared__ int numPoints_s[CLUSTER_NUM];
+
 		if (threadIdx.x < CLUSTER_NUM) {
 			centroidsX_s[threadIdx.x] = centroidsX_d[threadIdx.x];
 			centroidsY_s[threadIdx.x] = centroidsY_d[threadIdx.x];
 			centroidsZ_s[threadIdx.x] = centroidsZ_d[threadIdx.x];
+			//sumsX_s[threadIdx.x] = 0.0;
+			//sumsY_s[threadIdx.x] = 0.0;
+			//sumsZ_s[threadIdx.x] = 0.0;
+			//numPoints_s[threadIdx.x] = 0;
 		}
 
 		if(tid < DATA_SIZE) {
@@ -83,12 +92,24 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 
 			//assign cluster and update partial sum
 			assignedCentroids_d[tid] = currentCluster;
-			atomicAdd(&sumsX_d[currentCluster], pointsX_d[tid]);
-			atomicAdd(&sumsY_d[currentCluster], pointsY_d[tid]);
-			atomicAdd(&sumsZ_d[currentCluster], pointsZ_d[tid]);
-			atomicAdd(&numPoints_d[currentCluster], 1);
+			atomicAdd(&sumsX_s[currentCluster], pointsX_d[tid]);
+			atomicAdd(&sumsY_s[currentCluster], pointsY_d[tid]);
+			atomicAdd(&sumsZ_s[currentCluster], pointsZ_d[tid]);
+			atomicAdd(&numPoints_s[currentCluster], 1);
 
 		}
+
+
+		__syncthreads();
+
+		//commit to global memory
+		if(threadIdx.x < CLUSTER_NUM) {
+			atomicAdd(&centroidsX_d[threadIdx.x], sumsX_s[threadIdx.x]);
+			atomicAdd(&centroidsY_d[threadIdx.x], sumsY_s[threadIdx.x]);
+			atomicAdd(&centroidsZ_d[threadIdx.x], sumsZ_s[threadIdx.x]);
+			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
+		}
+
 }
 
 __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
