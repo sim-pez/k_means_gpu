@@ -64,11 +64,13 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 			centroidsX_s[threadIdx.x] = centroidsX_d[threadIdx.x];
 			centroidsY_s[threadIdx.x] = centroidsY_d[threadIdx.x];
 			centroidsZ_s[threadIdx.x] = centroidsZ_d[threadIdx.x];
-			//sumsX_s[threadIdx.x] = 0.0;
-			//sumsY_s[threadIdx.x] = 0.0;
-			//sumsZ_s[threadIdx.x] = 0.0;
-			//numPoints_s[threadIdx.x] = 0;
+			sumsX_s[threadIdx.x] = 0;
+			sumsY_s[threadIdx.x] = 0;
+			sumsZ_s[threadIdx.x] = 0;
+			numPoints_s[threadIdx.x] = 0;
 		}
+
+		__syncthreads();
 
 		if(tid < DATA_SIZE) {
 			float clusterDistance = __FLT_MAX__;
@@ -92,9 +94,9 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 
 			//assign cluster and update partial sum
 			assignedCentroids_d[tid] = currentCluster;
-			atomicAdd(&sumsX_s[currentCluster], pointsX_d[tid]);
-			atomicAdd(&sumsY_s[currentCluster], pointsY_d[tid]);
-			atomicAdd(&sumsZ_s[currentCluster], pointsZ_d[tid]);
+			atomicAdd(&sumsX_s[currentCluster], pX);
+			atomicAdd(&sumsY_s[currentCluster], pY);
+			atomicAdd(&sumsZ_s[currentCluster], pZ);
 			atomicAdd(&numPoints_s[currentCluster], 1);
 
 		}
@@ -167,19 +169,17 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_d, centroidsY_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_d, centroidsZ_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
 
-	int epoch = 0;
-	while(epoch < MAX_ITERATIONS) {
+	for (int epoch = 0; epoch < MAX_ITERATIONS; epoch++) {
 		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsX_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * CLUSTER_NUM));
-		kMeansKernel<<<(DATA_SIZE + 127) / 128, 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d); //TODO
+		kMeansKernel<<<ceil((DATA_SIZE + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d); //TODO
 		cudaDeviceSynchronize();
-		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 31, 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
-		epoch++;
+		calculateMeans<<<ceil((CLUSTER_NUM * 3 + 31) / 31), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
+		cudaDeviceSynchronize();
 	}
 
-	//printf("%d iterations completed \n", epoch);
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_h, centroidsX_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_h, centroidsY_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_h, centroidsZ_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
