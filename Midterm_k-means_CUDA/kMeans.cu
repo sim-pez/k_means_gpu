@@ -74,8 +74,7 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 
 		if(tid < DATA_SIZE) {
 			float clusterDistance = __FLT_MAX__;
-			int oldCluster = assignedCentroids_d[tid];
-			int currentCluster = oldCluster;
+			int currentCluster = assignedCentroids_d[tid];
 			float pX = pointsX_d[tid];
 			float pY = pointsY_d[tid];
 			float pZ = pointsZ_d[tid];
@@ -98,9 +97,7 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 			atomicAdd(&sumsY_s[currentCluster], pY);
 			atomicAdd(&sumsZ_s[currentCluster], pZ);
 			atomicAdd(&numPoints_s[currentCluster], 1);
-
 		}
-
 
 		__syncthreads();
 
