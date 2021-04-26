@@ -106,9 +106,9 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 
 		//commit to global memory
 		if(threadIdx.x < CLUSTER_NUM) {
-			atomicAdd(&centroidsX_d[threadIdx.x], sumsX_s[threadIdx.x]);
-			atomicAdd(&centroidsY_d[threadIdx.x], sumsY_s[threadIdx.x]);
-			atomicAdd(&centroidsZ_d[threadIdx.x], sumsZ_s[threadIdx.x]);
+			atomicAdd(&sumsX_d[threadIdx.x], sumsX_s[threadIdx.x]);
+			atomicAdd(&sumsY_d[threadIdx.x], sumsY_s[threadIdx.x]);
+			atomicAdd(&sumsZ_d[threadIdx.x], sumsZ_s[threadIdx.x]);
 			atomicAdd(&numPoints_d[threadIdx.x], numPoints_s[threadIdx.x]);
 		}
 
