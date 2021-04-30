@@ -43,9 +43,9 @@ __global__ void calculateMeans(float *centroidsX_d, float *centroidsY_d, float *
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(tid < CLUSTER_NUM){
-			centroidsX_d[tid] = sumsX_d[tid] / numPoints_d[tid];
-			centroidsY_d[tid] = sumsY_d[tid] / numPoints_d[tid];
-			centroidsZ_d[tid] = sumsZ_d[tid] / numPoints_d[tid];
+		centroidsX_d[tid] = sumsX_d[tid] / numPoints_d[tid];
+		centroidsY_d[tid] = sumsY_d[tid] / numPoints_d[tid];
+		centroidsZ_d[tid] = sumsZ_d[tid] / numPoints_d[tid];
 	}
 }
 
@@ -171,7 +171,7 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsX_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * CLUSTER_NUM));
-		kMeansKernel<<<ceil((DATA_SIZE + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d); //TODO
+		kMeansKernel<<<ceil((DATA_SIZE + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
 		cudaDeviceSynchronize();
 		calculateMeans<<<ceil((CLUSTER_NUM * 3 + 31) / 31), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
 		cudaDeviceSynchronize();
@@ -183,7 +183,7 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
 	writeCsv(pointsX_h, pointsY_h, pointsZ_h, centroidsX_h, centroidsY_h, centroidsZ_h, assignedCentroids_h);
 
-	 // Free host memory
+	
 	free(pointsX_h);
 	free(pointsY_h);
 	free(pointsZ_h);
@@ -191,8 +191,6 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 	free(centroidsY_h);
 	free(centroidsZ_h);
 	free(assignedCentroids_h);
-
-	 //free device memory
 	cudaFree(pointsX_d);
 	cudaFree(pointsY_d);
 	cudaFree(pointsZ_d);
