@@ -144,22 +144,22 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 	float *centroidsZ_h = (float*) malloc(sizeof(float) * CLUSTER_NUM);
 
 	srand (time(NULL));
-    vector<int> extractedIndex;
+    	vector<int> extractedIndex;
 
 	for (int i = 0; i < CLUSTER_NUM; i++){
         bool alreadySelected = false;
         int randomIndex;
-        do {                        //avoid repeating
-        	randomIndex = rand() % DATA_SIZE - i;
-        	for (int e : extractedIndex) {
-        		if (randomIndex == e)
-        	         alreadySelected = true;
-        	}
-        } while (alreadySelected);
+        	do {                        //avoid repeating
+        		randomIndex = rand() % DATA_SIZE - i;
+        		for (int e : extractedIndex) {
+        			if (randomIndex == e)
+        	         	alreadySelected = true;
+        		}
+        	} while (alreadySelected);
 
         centroidsX_h[i] = pointsX_h[randomIndex];
-		centroidsY_h[i] = pointsY_h[randomIndex];
-		centroidsZ_h[i] = pointsZ_h[randomIndex];
+	centroidsY_h[i] = pointsY_h[randomIndex];
+	centroidsZ_h[i] = pointsZ_h[randomIndex];
 	}
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
@@ -225,7 +225,7 @@ int main(int argc, char **argv){
 	auto ms_int = duration_cast<milliseconds>(end - start);
 	cout << "duration in milliseconds: " << ms_int.count() <<"\n";
 
-    return ms_int.count();
+	return ms_int.count();
 
 
 }
