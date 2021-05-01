@@ -171,9 +171,9 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h){
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsX_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * CLUSTER_NUM));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * CLUSTER_NUM));
-		kMeansKernel<<<ceil((DATA_SIZE + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
+		kMeansKernel<<<(DATA_SIZE + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
 		cudaDeviceSynchronize();
-		calculateMeans<<<ceil((CLUSTER_NUM * 3 + 31) / 31), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
+		calculateMeans<<<(CLUSTER_NUM * 3 + 31) / 32), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
 		cudaDeviceSynchronize();
 	}
 
