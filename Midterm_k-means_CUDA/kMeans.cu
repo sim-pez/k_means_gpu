@@ -30,7 +30,7 @@ static void CheckCudaErrorAux (const char *file, unsigned line, const char *stat
 
 //---------------------------------------------------------------------------------------------------------------------------------------
 
-__global__ void warm_up_gpu(){  // this kernel avoids cold start when evaluating duration of kmeans exec.
+__global__ void warmUpGpu(){  // this kernel avoids cold start when evaluating duration of kmeans exec.
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   float ia, ib;
   ia = ib = 0.0f;
@@ -215,7 +215,7 @@ int main(int argc, char **argv){
 		dataZ_h[i] = data[i * 3 + 2];
 	}
 
-	warm_up_gpu<<<128, 128>>>();  // avoids cold start for testing purposes
+	warmUpGpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
 	kMeansCuda(dataX_h, dataY_h, dataZ_h);
 	auto end = high_resolution_clock::now();
