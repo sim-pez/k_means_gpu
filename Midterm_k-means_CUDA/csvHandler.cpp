@@ -7,14 +7,14 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-float *readCsv() {
+float *readCsv(int n) {
 	string line;
     ifstream file("input/dataset.csv", ifstream::in);
 
-    float *data = (float *) malloc(sizeof(float) * DATA_SIZE * 3);
+    float *data = (float *) malloc(sizeof(float) * n * 3);
 
     int i = 0;
-    for (int i = 0; i < DATA_SIZE; i++){
+    for (int i = 0; i < n; i++){
     	getline(file, line);
         stringstream lineStream(line);
         string bit;
@@ -29,9 +29,9 @@ float *readCsv() {
     return data;
 }
 
-void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters) {
+void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters, int n) {
     ofstream fileIterations("output/points.csv", ifstream::out);
-    for (int i = 0; i < DATA_SIZE; i++ ){
+    for (int i = 0; i < n; i++ ){
     	fileIterations << pointsX[i] << "," << pointsY[i] << "," << pointsZ[i ] << "," << clusters[i] << "\n";
     }
     fileIterations.close();
