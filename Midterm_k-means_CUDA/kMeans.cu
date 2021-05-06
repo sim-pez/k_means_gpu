@@ -145,7 +145,7 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 	float *centroidsZ_h = (float*) malloc(sizeof(float) * CLUSTER_NUM);
 
 	srand (time(NULL));
-    	vector<int> extractedIndex;
+    vector<int> extractedIndex;
 
 	for (int i = 0; i < CLUSTER_NUM; i++){
         bool alreadySelected = false;
@@ -159,8 +159,8 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
         	} while (alreadySelected);
 
         centroidsX_h[i] = pointsX_h[randomIndex];
-	centroidsY_h[i] = pointsY_h[randomIndex];
-	centroidsZ_h[i] = pointsZ_h[randomIndex];
+        centroidsY_h[i] = pointsY_h[randomIndex];
+        centroidsZ_h[i] = pointsZ_h[randomIndex];
 	}
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
@@ -206,17 +206,12 @@ int main(int argc, char **argv){
 	int n = 1000; //number of points
 
 	initialize();
-	float *data = readCsv();
 
-	float *dataX_h = (float*) malloc(sizeof(float) * n);
-	float *dataY_h = (float*) malloc(sizeof(float) * n);
-	float *dataZ_h = (float*) malloc(sizeof(float) * n);
-
-	for (int i = 0; i< n; i++) {
-		dataX_h[i] = data[i * 3];
-		dataY_h[i] = data[i * 3 + 1];
-		dataZ_h[i] = data[i * 3 + 2];
-	}
+	float *dataX_h, *dataY_h, *dataZ_h;
+	dataX_h = (float*) malloc(sizeof(float) * n);
+	dataY_h = (float*) malloc(sizeof(float) * n);
+	dataZ_h = (float*) malloc(sizeof(float) * n);
+	readCsv(dataX_h, dataY_h, dataZ_h, n);
 
 	warmUpGpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();

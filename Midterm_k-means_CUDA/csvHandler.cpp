@@ -7,26 +7,24 @@
 #include "csvHandler.h"
 #include "definitions.h"
 
-float *readCsv(int n) {
-	string line;
+using namespace std;
+
+void readCsv(float *x, float *y, float *z, int n) {
+    string line;
     ifstream file("input/dataset.csv", ifstream::in);
 
-    float *data = (float *) malloc(sizeof(float) * n * 3);
-
-    int i = 0;
     for (int i = 0; i < n; i++){
     	getline(file, line);
         stringstream lineStream(line);
         string bit;
-        getline(lineStream, bit, ','); // x
-        data[i * 3] = stof(bit);
-        getline(lineStream, bit, ','); // y
-        data[i * 3 + 1] = stof(bit);
-        getline(lineStream, bit, ','); // z
-        data[i * 3 + 2] = stof(bit);
+        getline(lineStream, bit, ',');
+        x[i] = stof(bit);
+        getline(lineStream, bit, ',');
+        y[i] = stof(bit);
+        getline(lineStream, bit, ',');
+        z[i] = stof(bit);
     }
     file.close();
-    return data;
 }
 
 void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters, int n) {
@@ -45,7 +43,7 @@ void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX,
 
 void writeDurationCsv(int* meanVectorDuration) {
 	ofstream fileDuration("durationCUDA.csv", ifstream::out);
-	for (int i=0; i<10; i++) { //TODO change 10
+	for (int i=0; i<10; i++) {
 		fileDuration << meanVectorDuration[i] << "\n";
 	}
 	fileDuration.close();
