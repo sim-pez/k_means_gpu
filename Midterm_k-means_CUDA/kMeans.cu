@@ -144,25 +144,15 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 	float *centroidsX_h = (float*) malloc(sizeof(float) * k);
 	float *centroidsY_h = (float*) malloc(sizeof(float) * k);
 	float *centroidsZ_h = (float*) malloc(sizeof(float) * k);
-
+	
 	srand (time(NULL));
-    vector<int> extractedIndex;
-
-	for (int i = 0; i < k; i++){
-        bool alreadySelected = false;
-        int randomIndex;
-        	do {                        //avoid repeating
-        		randomIndex = rand() % n - i;
-        		for (int e : extractedIndex) {
-        			if (randomIndex == e)
-        	         	alreadySelected = true;
-        		}
-        	} while (alreadySelected);
-
-        centroidsX_h[i] = pointsX_h[randomIndex];
-        centroidsY_h[i] = pointsY_h[randomIndex];
-        centroidsZ_h[i] = pointsZ_h[randomIndex];
-	}
+    	int randIdx = rand() % n;
+    	for(int i = 0; i < k; i ++ ){
+        	int offset = i * (n / k);
+		centroidsX_h[i] = pointsX_h[(randIdx + offset) % n];
+        	centroidsY_h[i] = pointsY_h[(randIdx + offset) % n];
+        	centroidsZ_h[i] = pointsZ_h[(randIdx + offset) % n];	
+    	}
 
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * k, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_d, centroidsY_h, sizeof(float) * k, cudaMemcpyHostToDevice));
