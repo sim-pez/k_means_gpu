@@ -50,18 +50,7 @@ __global__ void calculateMeans(float *centroidsX_d, float *centroidsY_d, float *
 
 
 __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_d, float *centroidsX_d, float *centroidsY_d, float *centroidsZ_d, int *assignedCentroids_d, float *sumsX_d, float *sumsY_d, float *sumsZ_d, int *numPoints_d, int n, int k) {
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	extern __shared__ float s[];
-
-	/*
-	__shared__ float centroidsX_s[];
-	__shared__ float centroidsY_s[];
-	__shared__ float centroidsZ_s[];
-	__shared__ float sumsX_s[CLUSTER_NUM];
-	__shared__ float sumsY_s[CLUSTER_NUM];
-	__shared__ float sumsZ_s[CLUSTER_NUM];
-	*/
-
 	float* centroidsX_s = (float*)s;
 	float* centroidsY_s = (float*)&centroidsX_s[k];
 	float* centroidsZ_s = (float*)&centroidsY_s[k];
@@ -70,8 +59,9 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 	float* sumsZ_s = (float*)&sumsY_s[k];
 	int* numPoints_s = (int*)&sumsZ_s[k];
 
-
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	int tx = threadIdx.x;
+	
 	if (tx < k) {
 		centroidsX_s[tx] = centroidsX_d[tx];
 		centroidsY_s[tx] = centroidsY_d[tx];
@@ -184,9 +174,9 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * k));
 		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * k));
 		int sharedSize = k * sizeof(float) * 6 + k * sizeof(int);  // for dynamic shared memory allocation
-		kMeansKernel<<<((n + 127) / 128), 128, sharedSize>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, n, k);
+		kMeansKernel<<<(n + 127) / 128 , 128, sharedSize>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, n, k);
 		cudaDeviceSynchronize();
-		calculateMeans<<<((k * 3 + 31) / 32), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, k);
+		calculateMeans<<<(k + 127) / 128 , 128>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, k);
 		cudaDeviceSynchronize();
 	}
 
