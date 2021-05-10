@@ -6,7 +6,6 @@
 #include <random>
 
 #include "csvHandler.h"
-#include "definitions.h"
 
 #include <unistd.h>
 #include <chrono>
@@ -39,10 +38,10 @@ __global__ void warmUpGpu(){  // this kernel avoids cold start when evaluating d
 
 //----------------------------------------------------------------------------------------------------------------------------------------
 
-__global__ void calculateMeans(float *centroidsX_d, float *centroidsY_d, float *centroidsZ_d, float *sumsX_d, float *sumsY_d, float *sumsZ_d, int *numPoints_d){
+__global__ void calculateMeans(float *centroidsX_d, float *centroidsY_d, float *centroidsZ_d, float *sumsX_d, float *sumsY_d, float *sumsZ_d, int *numPoints_d, int k){
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if(tid < CLUSTER_NUM){
+	if(tid < k){
 		centroidsX_d[tid] = sumsX_d[tid] / numPoints_d[tid];
 		centroidsY_d[tid] = sumsY_d[tid] / numPoints_d[tid];
 		centroidsZ_d[tid] = sumsZ_d[tid] / numPoints_d[tid];
@@ -50,18 +49,30 @@ __global__ void calculateMeans(float *centroidsX_d, float *centroidsY_d, float *
 }
 
 
-__global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_d, float *centroidsX_d, float *centroidsY_d, float *centroidsZ_d, int *assignedCentroids_d, float *sumsX_d, float *sumsY_d, float *sumsZ_d, int *numPoints_d, int n) {
+__global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_d, float *centroidsX_d, float *centroidsY_d, float *centroidsZ_d, int *assignedCentroids_d, float *sumsX_d, float *sumsY_d, float *sumsZ_d, int *numPoints_d, int n, int k) {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	__shared__ float centroidsX_s[CLUSTER_NUM];
-	__shared__ float centroidsY_s[CLUSTER_NUM];
-	__shared__ float centroidsZ_s[CLUSTER_NUM];
+	extern __shared__ float s[];
+
+	/*
+	__shared__ float centroidsX_s[];
+	__shared__ float centroidsY_s[];
+	__shared__ float centroidsZ_s[];
 	__shared__ float sumsX_s[CLUSTER_NUM];
 	__shared__ float sumsY_s[CLUSTER_NUM];
 	__shared__ float sumsZ_s[CLUSTER_NUM];
-	__shared__ int numPoints_s[CLUSTER_NUM];
+	*/
+
+	float* centroidsX_s = (float*)s;
+	float* centroidsY_s = (float*)&centroidsX_s[k];
+	float* centroidsZ_s = (float*)&centroidsY_s[k];
+	float* sumsX_s = (float*)&centroidsZ_s[k];
+	float* sumsY_s = (float*)&sumsX_s[k];
+	float* sumsZ_s = (float*)&sumsY_s[k];
+	int* numPoints_s = (int*)&sumsZ_s[k];
+
 
 	int tx = threadIdx.x;
-	if (tx < CLUSTER_NUM) {
+	if (tx < k) {
 		centroidsX_s[tx] = centroidsX_d[tx];
 		centroidsY_s[tx] = centroidsY_d[tx];
 		centroidsZ_s[tx] = centroidsZ_d[tx];
@@ -81,7 +92,7 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 		float pZ = pointsZ_d[tid];
 
 
-		for (int j = 0; j < CLUSTER_NUM; j++) {
+		for (int j = 0; j < k; j++) {
 			float distanceX = centroidsX_s[j] - pX;
 			float distanceY = centroidsY_s[j] - pY;
 			float distanceZ = centroidsZ_s[j] - pZ;
@@ -103,7 +114,7 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 	__syncthreads();
 
 	//commit to global memory
-	if(tx < CLUSTER_NUM) {
+	if(tx < k) {
 		atomicAdd(&sumsX_d[tx], sumsX_s[tx]);
 		atomicAdd(&sumsY_d[tx], sumsY_s[tx]);
 		atomicAdd(&sumsZ_d[tx], sumsZ_s[tx]);
@@ -112,7 +123,7 @@ __global__ void kMeansKernel(float *pointsX_d, float *pointsY_d, float *pointsZ_
 
 }
 
-__host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, int n){
+__host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, int n, int k, int iterations){
 	//device memory managing
 	float *pointsX_d, *pointsY_d, *pointsZ_d;
 	float *centroidsX_d, *centroidsY_d, *centroidsZ_d;
@@ -124,30 +135,30 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&pointsY_d, sizeof(float) * n));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&pointsZ_d, sizeof(float) * n));
 
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsX_d, sizeof(float) * CLUSTER_NUM));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsY_d, sizeof(float) * CLUSTER_NUM));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsZ_d, sizeof(float) * CLUSTER_NUM));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsX_d, sizeof(float) * k));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsY_d, sizeof(float) * k));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsZ_d, sizeof(float) * k));
 
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsX_d, sizeof(float) * CLUSTER_NUM));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsY_d, sizeof(float) * CLUSTER_NUM));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsZ_d, sizeof(float) * CLUSTER_NUM));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsX_d, sizeof(float) * k));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsY_d, sizeof(float) * k));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsZ_d, sizeof(float) * k));
 
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * n));
-	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * CLUSTER_NUM ));
+	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * k ));
 
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsX_d, pointsX_h, sizeof(float) * n, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsY_d, pointsY_h, sizeof(float) * n, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsZ_d, pointsZ_h, sizeof(float) * n, cudaMemcpyHostToDevice));
 
 	// Step 1: Create k random centroids
-	float *centroidsX_h = (float*) malloc(sizeof(float) * CLUSTER_NUM);
-	float *centroidsY_h = (float*) malloc(sizeof(float) * CLUSTER_NUM);
-	float *centroidsZ_h = (float*) malloc(sizeof(float) * CLUSTER_NUM);
+	float *centroidsX_h = (float*) malloc(sizeof(float) * k);
+	float *centroidsY_h = (float*) malloc(sizeof(float) * k);
+	float *centroidsZ_h = (float*) malloc(sizeof(float) * k);
 
 	srand (time(NULL));
     vector<int> extractedIndex;
 
-	for (int i = 0; i < CLUSTER_NUM; i++){
+	for (int i = 0; i < k; i++){
         bool alreadySelected = false;
         int randomIndex;
         	do {                        //avoid repeating
@@ -163,26 +174,27 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
         centroidsZ_h[i] = pointsZ_h[randomIndex];
 	}
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_d, centroidsY_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_d, centroidsZ_h, sizeof(float) * CLUSTER_NUM, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * k, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_d, centroidsY_h, sizeof(float) * k, cudaMemcpyHostToDevice));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_d, centroidsZ_h, sizeof(float) * k, cudaMemcpyHostToDevice));
 
-	for (int epoch = 0; epoch < ITERATIONS; epoch++) {
-		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * CLUSTER_NUM));
-		CUDA_CHECK_RETURN(cudaMemset(sumPointsX_d, 0 , sizeof(float) * CLUSTER_NUM));
-		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * CLUSTER_NUM));
-		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * CLUSTER_NUM));
-		kMeansKernel<<<((n + 127) / 128), 128>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, n);
+	for (int epoch = 0; epoch < iterations; epoch++) {
+		CUDA_CHECK_RETURN(cudaMemset(numPoints_d, 0 , sizeof(int) * k));
+		CUDA_CHECK_RETURN(cudaMemset(sumPointsX_d, 0 , sizeof(float) * k));
+		CUDA_CHECK_RETURN(cudaMemset(sumPointsY_d, 0 , sizeof(float) * k));
+		CUDA_CHECK_RETURN(cudaMemset(sumPointsZ_d, 0 , sizeof(float) * k));
+		int sharedSize = k * sizeof(float) * 6 + k * sizeof(int);  // for dynamic shared memory allocation
+		kMeansKernel<<<((n + 127) / 128), 128, sharedSize>>>(pointsX_d, pointsY_d, pointsZ_d, centroidsX_d, centroidsY_d, centroidsZ_d, assignedCentroids_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, n, k);
 		cudaDeviceSynchronize();
-		calculateMeans<<<((CLUSTER_NUM * 3 + 31) / 32), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d);
+		calculateMeans<<<((k * 3 + 31) / 32), 32>>>(centroidsX_d, centroidsY_d, centroidsZ_d, sumPointsX_d, sumPointsY_d, sumPointsZ_d, numPoints_d, k);
 		cudaDeviceSynchronize();
 	}
 
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_h, centroidsX_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_h, centroidsY_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
-	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_h, centroidsZ_d, sizeof(float) * CLUSTER_NUM, cudaMemcpyDeviceToHost));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_h, centroidsX_d, sizeof(float) * k, cudaMemcpyDeviceToHost));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_h, centroidsY_d, sizeof(float) * k, cudaMemcpyDeviceToHost));
+	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_h, centroidsZ_d, sizeof(float) * k, cudaMemcpyDeviceToHost));
 	CUDA_CHECK_RETURN(cudaMemcpy(assignedCentroids_h, assignedCentroids_d, sizeof(int) * n, cudaMemcpyDeviceToHost));
-	writeCsv(pointsX_h, pointsY_h, pointsZ_h, centroidsX_h, centroidsY_h, centroidsZ_h, assignedCentroids_h, n);
+	writeCsv(pointsX_h, pointsY_h, pointsZ_h, centroidsX_h, centroidsY_h, centroidsZ_h, assignedCentroids_h, n, k);
 
 	
 	free(pointsX_h);
@@ -204,6 +216,8 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 
 int main(int argc, char **argv){
 	int n = 1000; //number of points
+	int iterations = 100;
+	int k = 10;  // number of clusters
 
 	initialize();
 
@@ -215,7 +229,7 @@ int main(int argc, char **argv){
 
 	warmUpGpu<<<128, 128>>>();  // avoids cold start for testing purposes
 	auto start = high_resolution_clock::now();
-	kMeansCuda(dataX_h, dataY_h, dataZ_h, n);
+	kMeansCuda(dataX_h, dataY_h, dataZ_h, n, k, iterations);
 	auto end = high_resolution_clock::now();
 
 	auto ms_int = duration_cast<milliseconds>(end - start);

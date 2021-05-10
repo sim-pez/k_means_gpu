@@ -5,7 +5,6 @@
 #include <filesystem>
 
 #include "csvHandler.h"
-#include "definitions.h"
 
 using namespace std;
 
@@ -27,7 +26,7 @@ void readCsv(float *x, float *y, float *z, int n) {
     file.close();
 }
 
-void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters, int n) {
+void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters, int n, int k) {
     ofstream fileIterations("output/points.csv", ifstream::out);
     for (int i = 0; i < n; i++ ){
     	fileIterations << pointsX[i] << "," << pointsY[i] << "," << pointsZ[i ] << "," << clusters[i] << "\n";
@@ -35,7 +34,7 @@ void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX,
     fileIterations.close();
 
     ofstream fileCentroids("output/centroids.csv", ifstream::out);
-    for (int i = 0; i < CLUSTER_NUM; i++ ){
+    for (int i = 0; i < k; i++ ){
         fileCentroids << centroidsX[i] << "," << centroidsY[i] << "," << centroidsZ[i] << "\n";
     }
     fileIterations.close();
