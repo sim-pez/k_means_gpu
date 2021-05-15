@@ -27,13 +27,13 @@ void readCsv(float *x, float *y, float *z, int n) {
 }
 
 void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX, float* centroidsY, float* centroidsZ, int* clusters, int n, int k) {
-    ofstream fileIterations("output/points.csv", ifstream::out);
+    ofstream fileIterations("points.csv", ifstream::out);
     for (int i = 0; i < n; i++ ){
     	fileIterations << pointsX[i] << "," << pointsY[i] << "," << pointsZ[i ] << "," << clusters[i] << "\n";
     }
     fileIterations.close();
 
-    ofstream fileCentroids("output/centroids.csv", ifstream::out);
+    ofstream fileCentroids("centroids.csv", ifstream::out);
     for (int i = 0; i < k; i++ ){
         fileCentroids << centroidsX[i] << "," << centroidsY[i] << "," << centroidsZ[i] << "\n";
     }
@@ -46,9 +46,4 @@ void writeDurationCsv(int* meanVectorDuration) {
 		fileDuration << meanVectorDuration[i] << "\n";
 	}
 	fileDuration.close();
-}
-
-void initialize(){
-	//std::filesystem::remove_all("../output/");
-	//std::filesystem::create_directory("../output/");
 }

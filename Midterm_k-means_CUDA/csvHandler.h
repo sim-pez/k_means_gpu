@@ -4,4 +4,3 @@ void writeCsv(float* pointsX, float* pointsY, float* pointsZ, float* centroidsX,
 
 void writeDurationCsv(int* meanVectorDuration);
 
-void initialize();

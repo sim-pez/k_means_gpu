@@ -5,8 +5,8 @@ import sys
 
 def plot_k_means():
 
-    df_dataset = pandas.read_csv('output/points.csv', header=None,)
-    df_centroids = pandas.read_csv('output/centroids.csv', header=None)
+    df_dataset = pandas.read_csv('points.csv', header=None,)
+    df_centroids = pandas.read_csv('centroids.csv', header=None)
 
     k = len(df_centroids)
     cluster = []
