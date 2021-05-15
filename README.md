@@ -10,13 +10,25 @@ where N is the number of points you want to generate, K is the number of cluster
 python datasetgen.py 1000 3 0.45
 ```
 ## 2 - Run
-...in progress
+```
+Midterm_k-means_CUDA N K I
+```
+Where N is the number of points to read from dataset, K is the number of clusters and I the number of iterations. (same as C++ version)
 
-## 3 - Plotting
+Example:
+```
+./Kmeans 1000 5 50
+```
+Will look for 5 clusters through first 1000 points of dataset and it will iterate 50 times. 
+
+## 3 - Check output
+After running program you can check output results with
 ```
 python plot.py
 ```
-After running program you can plot result
+
+### Note
+The code is made to work with 3D points but datasetgen.py will generate points with z = 0.0. This is intended to ease result checking with plot.py
 
 ## Other k-means versions
 - [Sequential](https://github.com/MarcoSolarino/Midterm_Parallel_Computing_K-means)
