@@ -125,18 +125,14 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&pointsX_d, sizeof(float) * n));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&pointsY_d, sizeof(float) * n));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&pointsZ_d, sizeof(float) * n));
-
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsX_d, sizeof(float) * k));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsY_d, sizeof(float) * k));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&centroidsZ_d, sizeof(float) * k));
-
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsX_d, sizeof(float) * k));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsY_d, sizeof(float) * k));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&sumPointsZ_d, sizeof(float) * k));
-
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&assignedCentroids_d, sizeof(int) * n));
 	CUDA_CHECK_RETURN(cudaMalloc((void ** )&numPoints_d, sizeof(int) * k ));
-
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsX_d, pointsX_h, sizeof(float) * n, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsY_d, pointsY_h, sizeof(float) * n, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(pointsZ_d, pointsZ_h, sizeof(float) * n, cudaMemcpyHostToDevice));
@@ -146,16 +142,14 @@ __host__ void kMeansCuda(float *pointsX_h, float *pointsY_h, float *pointsZ_h, i
 	float *centroidsX_h = (float*) malloc(sizeof(float) * k);
 	float *centroidsY_h = (float*) malloc(sizeof(float) * k);
 	float *centroidsZ_h = (float*) malloc(sizeof(float) * k);
-	
 	srand (time(NULL));
-    int randIdx = rand() % n;
-    for(int i = 0; i < k; i ++ ){
-        int offset = i * (n / k);
-        centroidsX_h[i] = pointsX_h[(randIdx + offset) % n];
-        centroidsY_h[i] = pointsY_h[(randIdx + offset) % n];
-        centroidsZ_h[i] = pointsZ_h[(randIdx + offset) % n];
-    }
-
+    	int randIdx = rand() % n;
+    	for(int i = 0; i < k; i ++ ){
+        	int offset = i * (n / k);
+        	centroidsX_h[i] = pointsX_h[(randIdx + offset) % n];
+        	centroidsY_h[i] = pointsY_h[(randIdx + offset) % n];
+        	centroidsZ_h[i] = pointsZ_h[(randIdx + offset) % n];
+    	}
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsX_d, centroidsX_h, sizeof(float) * k, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsY_d, centroidsY_h, sizeof(float) * k, cudaMemcpyHostToDevice));
 	CUDA_CHECK_RETURN(cudaMemcpy(centroidsZ_d, centroidsZ_h, sizeof(float) * k, cudaMemcpyHostToDevice));
