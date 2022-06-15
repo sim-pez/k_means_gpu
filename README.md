@@ -32,6 +32,20 @@ You can check output results with
 python plot.py
 ```
 
+# Performances
+Theese are results obtained using an NVIDIA GeForce GTX 980 Ti
+
+| number of points  | sequential (s) | CUDA (s) | speed up |
+|:-----------------:|:--------------:|:--------:|:--------:|
+| 10             | 0.001          | 0.116    | x0.008   |
+| 10<sup>2</sup> | 0.015          | 0.117    | x0.1     |
+| 10<sup>3</sup> | 0.180          | 0.119    | x1.5     |
+| 10<sup>4</sup> | 1.673          | 0.147    | x11.4    |
+| 10<sup>5</sup> | 8.424          | 0.579    | x14.5    |
+| 10<sup>6</sup> | 83.024         | 5.706    | x14.5    |
+| 10<sup>7</sup> | 804.611        | 54.319   | x14.8     |
+
+
 # Other versions
 - CPU-only [sequential version](https://github.com/MarcoSolarino/Midterm_Parallel_Computing_K-means)
 - there is also a [distributed system version](https://github.com/sim-pez/k_means_distributed)
